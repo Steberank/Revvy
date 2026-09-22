@@ -1,0 +1,9 @@
+[package]
+name = "revvy-physics"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+glam.workspace = true
+tracing.workspace = true

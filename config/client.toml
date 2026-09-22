@@ -1,0 +1,5 @@
+window_title = "Revvy"
+window_width = 1280
+window_height = 720
+# RGBA del clear de la superficie wgpu.
+clear_color = [0.08, 0.09, 0.12, 1.0]

@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/formats",
+    "crates/net",
+    "crates/physics",
+    "crates/bots",
+    "crates/stats",
+    "client",
+    "server",
+    "tools/map-packager",
+    "tools/car-packager",
+    "tools/asset-inspector",
+    "tools/track-editor",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "time", "io-util"] }
+glam = "0.33"
+serde = { version = "1", features = ["derive"] }
+ron = "0.12"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+thiserror = "2"
+toml = "0.8"

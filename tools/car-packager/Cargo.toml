@@ -1,0 +1,5 @@
+[package]
+name = "car-packager"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true

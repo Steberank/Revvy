@@ -1,0 +1,17 @@
+// Capa 3: pesos relativos de cada poder (w = 0 no sale).
+// Las magnitudes de empuje se afinan en la fase 5; acá solo está la tabla.
+(
+    weights: [
+        (kind: WaterBalloon, w: 100),
+        (kind: HomingRocket3, w: 40),
+        (kind: HomingRocket1, w: 70),
+        (kind: OilSlick, w: 90),
+        (kind: Electric, w: 80),
+        (kind: Shockwave, w: 60),
+        (kind: Battery, w: 90),
+        (kind: FakeBolt, w: 50),
+        (kind: HotPotato, w: 40),
+        (kind: Star, w: 15),
+        (kind: HeavyBall, w: 30),
+    ],
+)

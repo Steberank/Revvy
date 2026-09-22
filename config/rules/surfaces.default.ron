@@ -1,0 +1,46 @@
+// Efectos por SurfaceType. Números de partida, afinables.
+// Un tipo ausente en un override de pista cae a esta tabla.
+(
+    Road: (
+        friction: 1.0,
+        lateral_grip: 1.0,
+        rolling_resist: 0.02,
+        speed_factor: 1.0,
+    ),
+    Dirt: (
+        friction: 0.7,
+        lateral_grip: 0.65,
+        rolling_resist: 0.08,
+        speed_factor: 0.85,
+    ),
+    Ice: (
+        friction: 0.15,
+        lateral_grip: 0.25,
+        rolling_resist: 0.01,
+        speed_factor: 1.05,
+    ),
+    Grass: (
+        friction: 0.55,
+        lateral_grip: 0.5,
+        rolling_resist: 0.1,
+        speed_factor: 0.75,
+    ),
+    Metal: (
+        friction: 0.9,
+        lateral_grip: 0.95,
+        rolling_resist: 0.015,
+        speed_factor: 1.0,
+    ),
+    Wood: (
+        friction: 0.8,
+        lateral_grip: 0.85,
+        rolling_resist: 0.03,
+        speed_factor: 0.95,
+    ),
+    Sand: (
+        friction: 0.45,
+        lateral_grip: 0.4,
+        rolling_resist: 0.15,
+        speed_factor: 0.6,
+    ),
+)

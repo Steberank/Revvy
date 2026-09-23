@@ -5,6 +5,7 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+bevy_ecs = "0.19"
 glam.workspace = true
 serde.workspace = true
 thiserror.workspace = true

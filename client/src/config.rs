@@ -8,6 +8,13 @@ pub struct ClientConfig {
     pub window_width: u32,
     pub window_height: u32,
     pub clear_color: [f64; 4],
+    /// Id dentro de `ServerREVOLT/levels`, o una ruta a la carpeta del mapa.
+    #[serde(default = "default_level")]
+    pub level: String,
+}
+
+fn default_level() -> String {
+    "nhood1".into()
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -9,8 +9,8 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
 use crate::config::ClientConfig;
-use crate::ecs::FrameLoop;
-use crate::input::Gamepads;
+use crate::drive::MapView;
+use crate::input::Input;
 use crate::render::Gpu;
 
 pub fn run(config: ClientConfig) -> anyhow::Result<()> {
@@ -19,8 +19,9 @@ pub fn run(config: ClientConfig) -> anyhow::Result<()> {
         config,
         window: None,
         gpu: None,
-        gamepads: Gamepads::new(),
-        frames: FrameLoop::new(),
+        input: Input::new(),
+        map: None,
+        last_tick: Instant::now(),
     };
     event_loop.run_app(&mut app)?;
     Ok(())
@@ -30,8 +31,9 @@ struct App {
     config: ClientConfig,
     window: Option<Arc<Window>>,
     gpu: Option<Gpu>,
-    gamepads: Gamepads,
-    frames: FrameLoop,
+    input: Input,
+    map: Option<MapView>,
+    last_tick: Instant,
 }
 
 impl ApplicationHandler for App {
@@ -54,10 +56,33 @@ impl ApplicationHandler for App {
             }
         };
         match Gpu::new(window.clone(), &self.config) {
-            Ok(gpu) => {
+            Ok(mut gpu) => {
                 tracing::info!("superficie wgpu lista");
-                self.gpu = Some(gpu);
-                self.window = Some(window);
+                match MapView::load() {
+                    Ok(map) => {
+                        let device = gpu.device().clone();
+                        let queue = gpu.queue().clone();
+                        if let Some(scene) = gpu.scene_mut() {
+                            scene.upload_track(
+                                &device,
+                                &queue,
+                                map.track_meshes(),
+                                map.track_textures(),
+                            );
+                            if let Some(sky) = map.sky() {
+                                scene.upload_sky(&device, &queue, sky);
+                            }
+                        }
+                        self.map = Some(map);
+                        self.gpu = Some(gpu);
+                        self.window = Some(window);
+                        self.last_tick = Instant::now();
+                    }
+                    Err(err) => {
+                        tracing::error!(%err, "no se pudo cargar nhood1");
+                        event_loop.exit();
+                    }
+                }
             }
             Err(err) => {
                 tracing::error!(%err, "no se pudo inicializar wgpu");
@@ -66,10 +91,20 @@ impl ApplicationHandler for App {
         }
     }
 
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device_id: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
+        self.input.device_event(&event);
+    }
+
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         let Some(window) = self.window.clone() else {
             return;
         };
+        self.input.window_event(&event);
         if let Some(gpu) = self.gpu.as_mut() {
             let _ = gpu.on_window_event(&window, &event);
         }
@@ -82,11 +117,16 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::RedrawRequested => {
-                self.gamepads.poll();
-                self.frames.tick();
-                tracing::trace!(frame = self.frames.index(), "tick");
+                let now = Instant::now();
+                let dt = now.saturating_duration_since(self.last_tick).as_secs_f32();
+                self.last_tick = now;
+                let keys = self.input.fly();
+                if let Some(map) = self.map.as_mut() {
+                    map.step(dt, keys);
+                }
+                let camera = self.map.as_ref().map(|map| map.camera());
                 if let Some(gpu) = self.gpu.as_mut() {
-                    if let Err(err) = gpu.render(&window) {
+                    if let Err(err) = gpu.render(&window, camera.as_ref()) {
                         tracing::error!(%err, "falló el frame");
                         event_loop.exit();
                     }

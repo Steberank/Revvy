@@ -2,4 +2,6 @@ window_title = "Revvy"
 window_width = 1280
 window_height = 720
 # RGBA del clear de la superficie wgpu.
-clear_color = [0.08, 0.09, 0.12, 1.0]
+clear_color = [0.28, 0.48, 0.86, 1.0]
+# Carpeta en ServerREVOLT/levels, o una ruta. Otro mapa no requiere cambiar código.
+level = "nhood1"

@@ -42,7 +42,7 @@ Crear el árbol tal cual la arquitectura, aunque los módulos estén vacíos:
 - [x] Ventana `winit` + surface `wgpu` (clear color, resize).
 - [x] Loop con `bevy_ecs` standalone (un `Schedule` por frame, sin Bevy completo).
 - [x] `egui` + `egui-wgpu` + `egui-winit`: pantalla vacía “Revvy”.
-- [x] `gilrs` polleado, sin bindings todavía.
+- [x] `gilrs` estuvo en el esqueleto. El visor de la fase 2 no lo enlaza.
 - [x] Feature `track-editor` en `client/Cargo.toml`, default ON en desktop, ausente en mobile (`#[cfg(feature = "track-editor")]`).
 
 ### 0.4 Binario server (§2)
@@ -63,79 +63,95 @@ Referencia de layouts binarios: código y docs de RVGL. Parsers en `crates/forma
 
 ### 1.1 Trait común
 
-- [ ] `Track`, `CarDef`, `TrackAsset` en `formats/src/lib.rs`.
-- [ ] `TrackAsset { visual, collision }` — el server puede pedir solo `collision`.
-- [ ] Loader:
+- [x] `Track`, `CarDef`, `TrackAsset` en `formats/src/lib.rs`.
+- [x] `TrackAsset { visual, collision }` — el server puede pedir solo `collision`.
+- [x] Loader:
   1. Si `track.toml` tiene `format = "revvy-glb-v1"` → pipeline glTF (fase 8; por ahora error “no implementado”).
   2. Si no, `.inf` + `.w` + `.ncp` → pipeline legacy.
-- [ ] Carpetas mixtas (glb + `.w`) se rechazan.
+- [x] Carpetas mixtas (glb + `.w`) se rechazan.
 
 ### 1.2 Parsers de geometría y colisión
 
-- [ ] `.w` mundo / instancias (`world.rs`)
-- [ ] `.prm` mesh (`prm.rs`)
-- [ ] `.ncp` colisión + superficies (`ncp.rs`)
-- [ ] `.bmp` texturas (`bmp.rs`) vía crate `image`
-- [ ] Conversión de ejes al parse: Re-Volt (Y abajo, X derecha, Z adelante) → Y-up interno. Un solo espacio para física y render.
+- [x] `.w` mundo / instancias (`world.rs`)
+- [x] `.prm` mesh (`prm.rs`)
+- [x] `.ncp` del mundo y de cada instancia del `.fin` (`ncp.rs`, `fin.rs`). Nombre de 8 letras. Sin lista fija de props.
+- [x] `.bmp` texturas (`bmp.rs`) vía crate `image`. En el visor, el negro puro de esas páginas es color key.
+- [x] Conversión de ejes al parse: se niegan X e Y (1 cm por unidad). Un solo Y-up diestro para física y render. §6.5.
 
 ### 1.3 Parsers de layout de carrera → `TrackLayout`
 
 Adaptar a las structs de §7.4 (no exponer el binario crudo al resto del juego):
 
-- [ ] `.taz` → `zones` (`taz.rs`)
-- [ ] `.pan` → `pos_nodes` (`pan.rs`), links `-1` = sin conexión, cap histórico 4 no se impone en el tipo nuevo
-- [ ] `.fan` → `ai_nodes` (`fan.rs`): verde izquierda, rojo derecha, racing line, overtaking
-- [ ] `.fob` pickups → `pickups` (`fob.rs`); si hay tablas custom, `pickup_odds` / `PickupSpawn.odds` (lock de host)
-- [ ] `.fld` → `force_fields` (`fld.rs`)
-- [ ] `.fin` / start pos → `start_grid`
-- [ ] Triggers de reposition → `kill_volumes` cuando el tipo es kill
-- [ ] Superficies del `.ncp` → `SurfaceType` en el collider
+- [x] `.taz` → `zones` (`taz.rs`)
+- [x] `.pan` → `pos_nodes` (`pan.rs`), links `-1` = sin conexión, cap histórico 4 no se impone en el tipo nuevo
+- [x] `.fan` → `ai_nodes` (`fan.rs`): verde izquierda, rojo derecha, racing line, overtaking
+- [x] `.fob` pickups → `pickups` (`fob.rs`); si hay tablas custom, `pickup_odds` / `PickupSpawn.odds` (lock de host)
+- [x] `.fld` → `force_fields` (`fld.rs`)
+- [x] `.fin` / start pos → `start_grid`
+- [x] Triggers de reposition → `kill_volumes` cuando el tipo es kill
+- [x] Superficies del `.ncp` → `SurfaceType` en el collider
 
 ### 1.4 Parsers que se leen pero no gobiernan v1
 
 Implementar lo suficiente para no crashear al abrir un level stock; el gameplay puede ignorarlos hasta fases posteriores:
 
-- [ ] `.vis`, `.cam`, `.inf` (pista), `.lit` / `.li-`, `.por`, `.pro`
-- [ ] Notas en `docs/formats/` por archivo, con lo que se confirmó contra RVGL
+- [x] `.vis`, `.cam`, `.inf` (pista), `.lit` / `.li-`, `.por`, `.pro`
+- [x] Notas en `docs/formats/` por archivo, con lo que se confirmó contra RVGL
 
 ### 1.5 Autos legacy
 
-- [ ] `.prm` body/wheel + `.inf` parámetros → `CarDef`
-- [ ] No reescribir el `.inf`. El mapeo a campos (`engine`, `grip`, `mass`, `steer`, …) vive en un enum; lista final TBD pero el parser no descarta claves desconocidas (warning).
+- [x] `.prm` body/wheel + `parameters.txt` → `CarDef`
+- [x] No reescribir el archivo. Claves desconocidas quedan en el mapa (warning). Lo que falta lo rellena `CAR 0-28` de `CARINFO.TXT`.
 
 **Hecho cuando:** un test carga una pista real de `REVOLT/levels/` (p. ej. una con `.w`, `.ncp`, `.fan`, `.pan`, `.taz`) y cuenta meshes, zonas y nodos sin panic. Un auto `.prm`+`.inf` produce un `CarDef`.
 
 ---
 
-## Fase 2 — Render y un auto que se maneja (§1.2, §5, §6.5)
+## Fase 2 — Visor de un mapa legacy (§1.2, §6.5)
 
-Objetivo: vertical slice offline, una pista legacy, un auto, sin red.
+Objetivo: abrir una pista Re-Volt, recorrerla, y después poner el auto encima con el mismo manejo que el juego. El visor (2.1–2.3) ya corre sin auto ni audio. `revvy-physics` tiene un controlador de raycasts que el cliente no ejecuta: 2.5 lo reemplaza por la simulación de `rvsource`.
 
 ### 2.1 Render (`client/src/render`)
 
-- [ ] Pipeline opaco: posición, normal, UV, textura `.bmp`.
-- [ ] Cámara chase detrás del auto.
-- [ ] Upload de meshes desde `TrackAsset.visual` (`.w` / `.prm`). `Collision` no se dibuja.
-- [ ] Luces mínimas (ambiente + direccional). `.lit` puede esperar.
+- [x] Pipeline opaco: posición, normal, UV, textura `.bmp`.
+- [x] Cámara libre, no chase. WASD según la mirada, mouse para girar, Q baja, E sube, Shift acelera.
+- [x] Upload de `TrackAsset.visual` (`.w` y `.prm` de instancias). `Collision` no se dibuja.
+- [x] Luz = textura × gouraud del archivo. Sin sol ni hemisferio. `.lit` espera.
+- [x] Color key de mapa: texel RGB 0 no se dibuja; el resto de la cara sí. Un vértice negro no esconde la cara (techo del túnel).
+- [x] Skybox en el orden de `RenderSkybox`, ya pasado a Y-up. §6.5.
 
-### 2.2 Física del vehículo (`crates/physics`, `crates/core/vehicle`)
+### 2.2 Traducción
 
-- [ ] `rapier3d`: mundo estático con la colisión del `.ncp` (no la mesh visible).
-- [ ] `vehicle_controller.rs`: acelerar, frenar, doblar, desde parámetros del `CarDef`.
-- [ ] `collision_events.rs`: emite eventos para stats (aunque todavía no se persistan).
-- [ ] `jump.rs`: sistema presente, gate `GameplayRules.allow_jump` default `false`.
-- [ ] Input (`client/src/input`): teclado, mouse, gamepad (`gilrs`) → acciones abstractas (throttle, steer, brake, powerup, respawn, flip).
+- [x] `load_track(dir)` es la capa. `level` en `config/client.toml`, o el primer argumento (`cargo run -p revvy-client -- nhood1`).
+- [x] Cada instancia del `.fin` carga su `.ncp` por nombre, incluidos los recortados a 8 letras. Sin lista de props.
 
-### 2.3 ECS
+### 2.3 ECS (presente, el visor no lo usa para mover la cámara)
 
-- [ ] Componentes: `Transform`, `Velocity`, `PowerupSlot` (vacío por ahora), `CarId`.
-- [ ] Schedule compartible cliente/server en `revvy-core` (movimiento todavía local).
+- [x] Componentes: `Transform`, `Velocity`, `PowerupSlot` vacío, `CarId`.
+- [x] `drive_schedule` en `revvy-core` copia una pose. El visor no lo corre.
 
-### 2.4 Audio stub
+### 2.4 Render del auto (`client/src/render`, `load_car`)
 
-- [ ] `Kira` inicializado. Un SFX de motor que escala con throttle. El resto de SFX entra con poderes y colisiones.
+El chasis y las ruedas salen de `parameters.txt` (`MODEL`, `TPAGE`) y se dibujan en la pose del auto. La cámara libre del visor se mantiene hasta que 2.5 cierre el manejo; después puede volver la chase.
 
-**Hecho cuando:** se puede dar una vuelta a mano en una pista legacy, el auto choca con muros del `.ncp` y no atraviesa el piso.
+- [ ] Cuerpo en el origen del auto, con la rotación de la pose.
+- [ ] Cada rueda en `wheel N.offset1`, en el buje. `IsTurnable` gira en Y con `SteerRatio`. El giro visual sigue el ángulo de la física, no un ángulo aparte.
+- [ ] Rotación de rodadura en el eje de la rueda, a partir de la velocidad de avance y el `Radius`.
+- [ ] La rueda no se despega del buje en XZ. En Y se mueve solo el recorrido de suspensión de 2.5 (`MaxPos`).
+
+### 2.5 Físicas y handling como Re-Volt (`crates/physics`, `rvsource`)
+
+El controlador actual (raycast de Rapier, escalas a mano) no es la referencia. Se reescribe para seguir `car.cpp`, `Wheel.cpp`, `Body.cpp` y `NewColl.cpp`. Los números salen de `parameters.txt` encima de `CAR 0-28` en `CARINFO.TXT`; no se hardcodea el Calcure.
+
+- [ ] Motor: `EngineRate`, `EngineVolt`, `EngineRatio`, `TopSpeed` (`MPH2OGU`) y el fade de `CarWheelImpulse2`. Freno y `AxleFriction` como en el fuente.
+- [ ] Dirección: `SteerRate`, `SteerMod`, `SteerRatio` por rueda. El doble de tasa al centrar o invertir.
+- [ ] Suspensión: `SpringDampedForce` (`Stiffness`, `Damping`), `MaxPos`, y el golpe con `Spring.Restitution` (negativa: se come el impacto). El chasis no se da vuelta en una rampa chica ni se siente rígido.
+- [ ] Grip global: `StaticFriction` y `KineticFriction` de la rueda, y `Grip`, con el cono de fricción del fuente (estático hasta que desliza, después cinético).
+- [ ] Grip por superficie: el `.ncp` ya trae `SurfaceType`. μ y grip de la rueda se multiplican por `Roughness` y `Gripiness` de `COL_MaterialInfo` (`NewColl.cpp`). Hielo, tierra y asfalto no comparten el mismo agarre.
+- [ ] Cuerpo: esferas del `.hul`, gravedad `body.gravity`, `Resistance` / `AngRes`. El piso lo aguantan las ruedas; las esferas no lo vuelven resbaloso.
+- [ ] Misma escala que el mapa (1 cm, X e Y negados). `collision_events` sigue emitiendo sin persistir. `allow_jump` sigue en falso.
+
+**Hecho cuando:** se recorre nhood1 a pie (árboles sin rectángulo negro, cielo cerrado, túnel con techo, primera curva a la derecha) y, con 2.4 y 2.5, el Calcure se maneja como en Re-Volt: velocidad, agarre, suspensión y ruedas que giran en el buje.
 
 ---
 
@@ -239,19 +255,21 @@ odds = spawn.odds ?? layout.pickup_odds ?? (si !locked { room.pickup_odds }) ?? 
 
 Vectores y radios en `powerups.default.ron` (magnitudes afinables). Uso = acción `powerup`.
 
-| Kind | Entregable |
-| --- | --- |
-| `WaterBalloon` | Proyectil, 3 cargas. Impacto en auto = empuje. Impacto en pared = explota y gasta la carga. |
-| `HomingRocket3` | Igual, 3 cargas, persigue al rival más cercano adelante / con línea de visión. |
-| `HomingRocket1` | Igual, 1 carga. |
-| `OilSlick` | Decal/volumen en el piso. Quien lo pisa pierde grip mientras solapa. Grace ~0.5 s para el autor. |
-| `Electric` | Pulso de radio R. Otros en el radio no aceleran 4 s. |
-| `Shockwave` | Hitbox grande, empuje siempre hacia arriba, rebota en pared (no explota). |
-| `Battery` | +aceleración y +tope 10 s. |
-| `FakeBolt` | Deja un rayo falso (mismo mesh). Otro auto: VFX explosión + empuje arriba. No otorga poder. El autor no lo dispara. |
-| `HotPotato` | Timer 10 s al recoger. Explota sobre quien la tiene. Se pasa al **tocar** a otro; el receptor hereda el tiempo restante. 3 s de inmunidad al **pase** (no bloquea aceite ni otros poderes). |
-| `Star` | `Electric` a todos los demás, sin radio. |
-| `HeavyBall` | Cuerpo dinámico, mucha masa, sale con la velocidad del auto. Choca paredes; a alta velocidad rebota. |
+
+| Kind            | Entregable                                                                                                                                                                                  |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WaterBalloon`  | Proyectil, 3 cargas. Impacto en auto = empuje. Impacto en pared = explota y gasta la carga.                                                                                                 |
+| `HomingRocket3` | Igual, 3 cargas, persigue al rival más cercano adelante / con línea de visión.                                                                                                              |
+| `HomingRocket1` | Igual, 1 carga.                                                                                                                                                                             |
+| `OilSlick`      | Decal/volumen en el piso. Quien lo pisa pierde grip mientras solapa. Grace ~0.5 s para el autor.                                                                                            |
+| `Electric`      | Pulso de radio R. Otros en el radio no aceleran 4 s.                                                                                                                                        |
+| `Shockwave`     | Hitbox grande, empuje siempre hacia arriba, rebota en pared (no explota).                                                                                                                   |
+| `Battery`       | +aceleración y +tope 10 s.                                                                                                                                                                  |
+| `FakeBolt`      | Deja un rayo falso (mismo mesh). Otro auto: VFX explosión + empuje arriba. No otorga poder. El autor no lo dispara.                                                                         |
+| `HotPotato`     | Timer 10 s al recoger. Explota sobre quien la tiene. Se pasa al **tocar** a otro; el receptor hereda el tiempo restante. 3 s de inmunidad al **pase** (no bloquea aceite ni otros poderes). |
+| `Star`          | `Electric` a todos los demás, sin radio.                                                                                                                                                    |
+| `HeavyBall`     | Cuerpo dinámico, mucha masa, sale con la velocidad del auto. Choca paredes; a alta velocidad rebota.                                                                                        |
+
 
 - [ ] VFX mínimos (egui/partículas simples) para explosión, electricidad y aceite. Audio posicional en Kira por impacto.
 - [ ] `PowerupUsedEvent` ya tipado en `revvy-stats` (persistencia en fase 10).
@@ -298,11 +316,13 @@ Objetivo: dos clientes desktop en la misma sala. Singleplayer es la misma máqui
 
 Dos “ready” distintos en código y UI:
 
-| UI | Código | Significado |
-| --- | --- | --- |
-| Esperando | `LobbyStatus::Waiting` | No confirmó |
-| Listo | `LobbyStatus::Ready` | Confirmó; no implica tener el mapa |
-| (interno) | `AssetStatus::Ready` | Mapa cargado |
+
+| UI        | Código                 | Significado                        |
+| --------- | ---------------------- | ---------------------------------- |
+| Esperando | `LobbyStatus::Waiting` | No confirmó                        |
+| Listo     | `LobbyStatus::Ready`   | Confirmó; no implica tener el mapa |
+| (interno) | `AssetStatus::Ready`   | Mapa cargado                       |
+
 
 - [ ] `MapRequired { id, hash, size, version }` solo después de Iniciar. Timer 15 s.
 - [ ] Resolución local: `levels/<id>/` mismo hash, si no `cache/server/<id>/`, si no descarga (la descarga real es fase 8; en esta fase alcanza con `levels/` local y un error claro si falta).
@@ -313,14 +333,14 @@ Dos “ready” distintos en código y UI:
 
 ### 7.4 Autoridad (§4.8) — se elige en config y se congela al Iniciar
 
-**`Client` (amigos)**
+`**Client` (amigos)**
 
 - [ ] Cada dueño integra su física y manda `VehicleState`. Los demás interpolan.
 - [ ] El host simula bots y emite sus estados.
 - [ ] El host arbitra rayitos, poderes, vueltas, respawn.
 - [ ] Auto custom: se acepta la pose del dueño.
 
-**`Server` (competitivo)**
+`**Server` (competitivo)**
 
 - [ ] Clientes mandan `Input`. El server corre Rapier y manda snapshots.
 - [ ] El server simula bots y arbitra reglas.
@@ -368,12 +388,14 @@ En ambos modos el server de sala hace lobby, `MapRequired` y “host se fue → 
 
 Techo esperado:
 
-| Estado | Disco extra |
-| --- | --- |
-| Idle / lobby | 100 MB reserva |
-| Post-carrera, una pista en caché | ≤ 100 MB pista + 100 MB reserva |
-| Loading de otra pista (pinned + incoming) | ≤ 200 MB en pistas, reserva 0 |
-| Tras el 3-2-1 de la pista nueva | ≤ 100 MB pista + 100 MB reserva |
+
+| Estado                                    | Disco extra                     |
+| ----------------------------------------- | ------------------------------- |
+| Idle / lobby                              | 100 MB reserva                  |
+| Post-carrera, una pista en caché          | ≤ 100 MB pista + 100 MB reserva |
+| Loading de otra pista (pinned + incoming) | ≤ 200 MB en pistas, reserva 0   |
+| Tras el 3-2-1 de la pista nueva           | ≤ 100 MB pista + 100 MB reserva |
+
 
 La reserva es solo de mapas, no de autos. **No existe en Android/iOS.**
 
@@ -472,7 +494,7 @@ El editor no modela meshes. Reabrir después de reexportar el `.glb` conserva `l
 
 ### 9.2 AiNodes
 
-- [ ] Par verde (izq) / rojo (der). `racing_t` y `overtaking_t` en \[0, 1\].
+- [ ] Par verde (izq) / rojo (der). `racing_t` y `overtaking_t` en 0, 1.
 - [ ] Flags: `Racing`, `Slowdown`, `SpeedLimit(f32)`, `PickupRoute`, `Careful`, `WallLeft`, `WallRight`.
 - [ ] `next[]` con ramas (atajos).
 
@@ -555,20 +577,22 @@ No es código de engine; es el paquete con el que se prueba el roadmap entero.
 
 ## Orden de ataque (resumen)
 
-| Fase | Qué se puede jugar al terminarla |
-| --- | --- |
-| 0 | Ventana vacía y server que responde |
-| 1 | Tests de parseo de una pista Re-Volt real |
-| 2 | Un auto, una pista, sin reglas de carrera |
-| 3 | Vueltas, wrong way, respawn, volcar |
-| 4 | Hielo, viento, mods de `calcure` |
-| 5 | Los 11 poderes y el lock de odds |
-| 6 | Bots que corren y usan poderes |
-| 7 | Dos jugadores, autoridad Client/Server, custom car, desconexión |
-| 8 | Descarga al Iniciar; disco+reserva en desktop, RAM en mobile; pistas `.glb` |
-| 9 | Editor MAKEITGOOD |
-| 10 | Stats y cuentas |
-| 11 | Android/iOS sin editor |
-| 12 | Un paquete de contenido para enseñar el loop completo |
+
+| Fase | Qué se puede jugar al terminarla                                            |
+| ---- | --------------------------------------------------------------------------- |
+| 0    | Ventana vacía y server que responde                                         |
+| 1    | Tests de parseo de una pista Re-Volt real                                   |
+| 2    | Pista a pie y, al cerrar 2.4–2.5, un auto que se maneja como Re-Volt       |
+| 3    | Vueltas, wrong way, respawn, volcar                                         |
+| 4    | Hielo, viento, mods de `calcure`                                            |
+| 5    | Los 11 poderes y el lock de odds                                            |
+| 6    | Bots que corren y usan poderes                                              |
+| 7    | Dos jugadores, autoridad Client/Server, custom car, desconexión             |
+| 8    | Descarga al Iniciar; disco+reserva en desktop, RAM en mobile; pistas `.glb` |
+| 9    | Editor MAKEITGOOD                                                           |
+| 10   | Stats y cuentas                                                             |
+| 11   | Android/iOS sin editor                                                      |
+| 12   | Un paquete de contenido para enseñar el loop completo                       |
+
 
 No empezar por el editor ni por mobile: las fases 2–3 son el juego; 7 es el multijugador; 8–9 son el pipeline de artistas.

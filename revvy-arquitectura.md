@@ -15,6 +15,9 @@
 - **anyhow** / **thiserror** — manejo de errores.
 
 ### 1.2 Cliente — Render / Simulación / Input
+
+El corte que corre hoy es un **visor de mapa legacy**: `load_track` → malla visible + cielo, cámara libre, sin auto y sin audio. Rapier, Kira y gilrs siguen en el stack de destino; el binario del visor no los enlaza.
+
 - **wgpu** — renderizado (Vulkan/Metal/DX12/GLES vía naga, cubre PC y mobile).
 - **winit** — ventana + eventos de input (PC), y base para Android/iOS.
 - **bevy_ecs** — ECS *standalone* (no el motor Bevy completo, solo el crate de ECS) para entidades del juego: autos, pickups, checkpoints, bots.
@@ -41,6 +44,7 @@
 - Recomendación práctica: **RVGL** (el fan-remake open source de Re-Volt) ya tiene reverse-engineering documentado y código abierto de estos formatos — usalo como referencia cruzada para no reinventar el parsing desde cero y evitar errores sutiles de layout binario.
 - Estrategia para el **legado**: **no convertir** los archivos a un formato propio. Se parsean tal cual, así una pista/auto copiada manualmente a `levels/` o `cars/` funciona sin pasos intermedios.
 - Las pistas **nuevas** (Blender / Blockbench) **no** se exportan a `.w`/`.ncp`/`.prm`. Van en glTF 2.0 (`.glb`) + sidecar de layout. Ver secciones 6–8. El runtime unifica ambos orígenes detrás del trait `TrackAsset`.
+- Capa de traducción ya en uso: carpeta Re-Volt → `load_track(dir)` → `TrackAsset` en Y-up. Otro mapa no pide código nuevo: `config/client.toml` (`level`) o el primer argumento del cliente. Ver §6.5.
 
 ### 1.6 Reglas editables / modos custom
 - Config data-driven en **RON** o **TOML** por sala (`GameplayRules`). Vueltas, `late_join_mode`, `sim_authority`, bot al desconectar, odds de pickups, turbo, etc. viven ahí, no hardcodeados.
@@ -154,9 +158,9 @@ revvy/
 │       ├── main.rs
 │       ├── app/                    # MainMenu, Lobby, Loading, Countdown, Race, Results, TrackEditor
 │       ├── render/                 # wgpu: pipelines, materiales, cámara; mesh desde .prm/.w (legacy) o .glb (nuevo)
-│       ├── input/                  # teclado/mouse/touch/gamepad → acciones abstractas
+│       ├── input/                  # visor: WASD, mouse, Q/E, Shift. Gamepad cuando vuelva el auto
 │       ├── ui/                     # menú, lobby (Listo/Esperando), HUD, stats; room/pickup_odds.rs
-│       ├── audio/                  # integración Kira (SFX motor, colisiones, música)
+│       ├── audio/                  # Kira, cuando el cliente vuelva a tener auto (no está en el visor)
 │       ├── network/                # cliente Quinn, reconciliación, cliente HTTP (reqwest) hacia API
 │       ├── assets_pipeline/        # descarga; desktop: disco+reserva; mobile: RAM (ver §4)
 │       ├── ecs/                    # systems/plugins específicos de cliente (interpolación visual, cámara)
@@ -370,7 +374,7 @@ El dedicated server siempre hace lobby, mapas y “host se fue → cierra”. En
 - **Stats por carrera y sesión**: `revvy-stats` define eventos; el server los persiste al final de cada carrera y agrega por sesión de 12-16 carreras.
 - **Salto implementado pero en desuso**: `physics/jump.rs`, flag `allow_jump: bool` default `false`.
 - **Reglas de sala**: `GameplayRules` incluye `sim_authority`, `laps`, `late_join_mode`, `disconnect_bot_replace`, vector de turbo, odds de pickup.
-- **Compatibilidad de formatos legacy**: `revvy-formats` parsea los binarios originales, sin conversión.
+- **Compatibilidad de formatos legacy**: `revvy-formats` parsea los binarios originales, sin conversión. Ejes, color key, gouraud y cielo: §6.5.
 - **Pistas nuevas (Blender/Blockbench)**: nunca se leen `.blend` / `.bbmodel`. Ver secciones 6–8.
 - **Visual ≠ colisión**: nodo `Collision` low-poly obligatorio. §6.7.
 - **Caché de mapas del server**: desktop en disco con reserva de 100 MB; mobile solo en RAM, sin `reserve.dat`. §4.4–4.5.
@@ -471,12 +475,32 @@ Una pista **legacy** sigue siendo la carpeta Re-Volt de siempre (`.w`, `.ncp`, `
 
 No se mezclan en la misma carpeta.
 
-### 6.5 Coordenadas: legado vs nuevo
+### 6.5 Coordenadas y traducción legacy
 
-- Re-Volt: diestro, **Y hacia abajo**, X derecha, Z adelante.
-- glTF / Revvy interno para tracks nuevas: diestro, **Y hacia arriba**.
+- Re-Volt: diestro, **Y hacia abajo**, +X derecha, +Z adelante (`DownVec`, `LookVec`).
+- glTF / Revvy interno: diestro, **Y hacia arriba**, +Z adelante.
+- Una unidad de Re-Volt es 1 cm (`REVOLT_TO_METERS = 0.01`).
 
-`revvy-formats` convierte el legado a Y-up **en el momento del parse**, de modo que `TrackAsset`, física y render hablan un solo espacio. El artista de Blender/Blockbench no piensa en el eje de 1999.
+Negar solo Y deja el mundo zurdo y el mapa espejado (en nhood1 la primera curva sale a la izquierda). La conversión niega **X e Y**: es un giro, la derecha sigue siendo la derecha. `axes::position` y `axes::direction` hacen esa cuenta. Las matrices del `.fin` se aplican en espacio de archivo con la misma multiplicación que el `.prm` (`mul_rows`) y después pasan por `position`. El yaw de `STARTROT` (`RotationY` alrededor de Y-abajo) queda `turns * τ`.
+
+El visor (`client/src/drive.rs`, `MapView`) llama `load_track` y no carga auto. La cámara arranca sobre la grilla. **W/S** avanzan por la mirada, **A/D** a los lados, **Q** baja y **E** sube en Y del mundo, el mouse gira, **Shift** acelera.
+
+#### Colisión de instancias
+
+`BuildInstanceCollPolys` no tiene una lista de props. Cada nombre del `.fin` busca `<nombre>.ncp` en la carpeta del nivel. El `.fin` guarda 8 caracteres: `WHITEPOS` es `whitepost`, `BARRIERP` es `barrierpole`. Si no hay `.ncp` (casas, aros, asientos), esa instancia no choca, igual que en el juego. Un `.ncp` vacío no aborta la pista.
+
+#### Dibujo del mapa legacy
+
+Solo `TrackAsset.visual`. El `.ncp` no se dibuja.
+
+- **Color key** (`texture.cpp`, clave RGB 0): en las texturas de pista, un texel negro queda con alpha 0 y el shader lo descarta. El resto de la cara se dibuja. No aplica a pistas `.glb` ni a autos.
+- **Gouraud negro no es color key.** El techo del túnel de nhood1 tiene vértices en `0,0,0` y textura con color. Re-Volt lo modula a negro y lo dibuja. Revvy también: si se omite la cara, el túnel queda abierto.
+- **Luz global:** `DrawCubePolys` pinta `textura × color de vértice`. No hay sol ni hemisferio encima. En nhood1 `WORLDRGBPER` es 100, así que el gouraud del archivo entra tal cual. `.lit` sigue sin usarse.
+- **Cielo:** `RenderSkybox` pega `sky_ft`, `sky_rt`, `sky_bk`, `sky_lt`, `sky_tp`, `sky_bt` en +Z, −X, −Z, +X, arriba y abajo del archivo. Tras el giro de ejes, el cubemap es +X `sky_rt`, −X `sky_lt`, +Y `sky_tp`, −Y `sky_bt`, +Z `sky_ft`, −Z `sky_bk`.
+
+#### Autos legacy (parser, no el visor)
+
+`load_car` lee `parameters.txt`. Las claves que faltan salen del bloque `CAR 0-28` de `CARINFO.TXT` (`merge_stock_defaults`). `WHEEL 0 - 3` se expande como `ReadNumberList`. El visor no instancia el auto: `revvy-physics` guarda el controlador, pero el cliente no lo ejecuta.
 
 ### 6.6 Autos y props desde Blockbench
 

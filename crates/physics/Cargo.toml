@@ -6,4 +6,5 @@ publish.workspace = true
 
 [dependencies]
 glam.workspace = true
+rapier3d = "0.35"
 tracing.workspace = true

@@ -13,11 +13,12 @@ track-editor = []
 [dependencies]
 anyhow.workspace = true
 bevy_ecs = "0.19"
+revvy-formats = { path = "../crates/formats" }
 egui = "0.36"
 egui-wgpu = "0.36"
 egui-winit = "0.36"
-gilrs = "0.11"
 glam.workspace = true
+image = { version = "0.25", default-features = false, features = ["bmp"] }
 pollster = "0.4"
 serde.workspace = true
 thiserror.workspace = true

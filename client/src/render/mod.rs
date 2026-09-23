@@ -8,8 +8,11 @@ use winit::window::Window;
 
 use crate::config::ClientConfig;
 
+mod scene;
 #[cfg(target_os = "linux")]
 mod vulkan_icd;
+
+pub use scene::{CameraView, Scene};
 
 pub struct Gpu {
     surface: wgpu::Surface<'static>,
@@ -20,6 +23,7 @@ pub struct Gpu {
     egui_ctx: egui::Context,
     egui_state: egui_winit::State,
     egui_renderer: egui_wgpu::Renderer,
+    scene: Option<Scene>,
 }
 
 impl Gpu {
@@ -87,6 +91,13 @@ impl Gpu {
         );
 
         let [r, g, b, a] = client.clear_color;
+        let scene = Scene::new(
+            &device,
+            &queue,
+            config.format,
+            size.width.max(1),
+            size.height.max(1),
+        );
         Ok(Self {
             surface,
             device,
@@ -96,7 +107,20 @@ impl Gpu {
             egui_ctx,
             egui_state,
             egui_renderer,
+            scene: Some(scene),
         })
+    }
+
+    pub fn device(&self) -> &wgpu::Device {
+        &self.device
+    }
+
+    pub fn queue(&self) -> &wgpu::Queue {
+        &self.queue
+    }
+
+    pub fn scene_mut(&mut self) -> Option<&mut Scene> {
+        self.scene.as_mut()
     }
 
     pub fn on_window_event(&mut self, window: &Window, event: &winit::event::WindowEvent) -> bool {
@@ -110,9 +134,12 @@ impl Gpu {
         self.config.width = width;
         self.config.height = height;
         self.surface.configure(&self.device, &self.config);
+        if let Some(scene) = self.scene.as_mut() {
+            scene.resize(&self.device, width, height);
+        }
     }
 
-    pub fn render(&mut self, window: &Window) -> anyhow::Result<()> {
+    pub fn render(&mut self, window: &Window, camera: Option<&CameraView>) -> anyhow::Result<()> {
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame)
             | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
@@ -127,7 +154,9 @@ impl Gpu {
         };
 
         let raw_input = self.egui_state.take_egui_input(window);
-        let mut full_output = self.egui_ctx.run_ui(raw_input, crate::ui::show_boot);
+        let mut full_output = self
+            .egui_ctx
+            .run_ui(raw_input, |ui| crate::ui::show_drive(ui.ctx()));
         self.egui_state
             .handle_platform_output(window, full_output.platform_output);
 
@@ -164,14 +193,36 @@ impl Gpu {
             let view = frame
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            let mut pass = encoder
-                .begin_render_pass(&wgpu::RenderPassDescriptor {
+            let aspect = self.config.width as f32 / self.config.height.max(1) as f32;
+            if let (Some(scene), Some(camera)) = (self.scene.as_ref(), camera) {
+                scene.draw(&self.queue, &mut encoder, &view, self.clear, aspect, camera);
+            } else {
+                let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("revvy-clear"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                         view: &view,
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(self.clear),
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                drop(_pass);
+            }
+            let mut pass = encoder
+                .begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("revvy-ui"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
                             store: wgpu::StoreOp::Store,
                         },
                         depth_slice: None,

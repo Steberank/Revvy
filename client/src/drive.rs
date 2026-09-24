@@ -27,6 +27,14 @@ const MAX_FRAME: f32 = 10.0 / 72.0;
 const EXTRA_SLOT_GAP: f32 = 1.5;
 const MPS_TO_MPH: f32 = 2.236_94;
 
+/// Una carrera por arrancar: la pista y los autos en el orden de la grilla. Pista y autos
+/// son ids dentro de `levels/` y `cars/`, o rutas.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Race {
+    pub level: String,
+    pub cars: Vec<String>,
+}
+
 /// Lo que el render necesita de un auto.
 pub struct CarView {
     pub name: String,
@@ -40,6 +48,7 @@ pub struct DriveView {
     track_textures: Vec<(i16, image::RgbaImage)>,
     color_key: bool,
     sky: Option<[image::RgbaImage; 6]>,
+    background: Option<[u8; 3]>,
     cars: Vec<CarView>,
     world: PhysicsWorld,
     chase: ChaseCamera,
@@ -57,10 +66,9 @@ struct FreeCamera {
 }
 
 impl DriveView {
-    pub fn load(config: &ClientConfig) -> anyhow::Result<Self> {
+    pub fn load(config: &ClientConfig, race: &Race) -> anyhow::Result<Self> {
         let content = config.content_dir();
-        let (level, car_names) = cli_content(&config.level, &config.car, &config.extra_cars);
-        let level_dir = resolve_content(&content.join("levels"), &level);
+        let level_dir = resolve_content(&content.join("levels"), &race.level);
 
         tracing::info!(pista = %level_dir.display(), "cargando pista");
         let track = load_track(&level_dir, TrackLoad::default())?;
@@ -69,7 +77,7 @@ impl DriveView {
         let visual = track.asset.visual.as_ref();
 
         let mut defs: Vec<(CarDef, Vec3)> = Vec::new();
-        for (i, name) in car_names.iter().enumerate() {
+        for (i, name) in race.cars.iter().enumerate() {
             let car_dir = resolve_content(&content.join("cars"), name);
             tracing::info!(auto = %car_dir.display(), "cargando auto");
             let car = load_car(&car_dir)?;
@@ -106,6 +114,7 @@ impl DriveView {
             track_textures: visual.map(|v| v.textures.clone()).unwrap_or_default(),
             color_key: visual.is_some_and(|v| v.color_key),
             sky: visual.and_then(|v| v.sky.clone()),
+            background: visual.and_then(|v| v.background),
             cars,
             listener_pos: chase.eye,
             free: FreeCamera {
@@ -136,6 +145,11 @@ impl DriveView {
 
     pub fn sky(&self) -> Option<&[image::RgbaImage; 6]> {
         self.sky.as_ref()
+    }
+
+    /// El fondo donde no hay cielo.
+    pub fn background(&self) -> Option<[u8; 3]> {
+        self.background
     }
 
     pub fn cars(&self) -> &[CarView] {
@@ -309,21 +323,25 @@ fn look_dir(yaw: f32, pitch: f32) -> Vec3 {
     Vec3::new(yaw.sin() * pitch.cos(), pitch.sin(), yaw.cos() * pitch.cos())
 }
 
-/// `cargo run -p revvy-client -- <pista> [auto] [más autos…]`.
-fn cli_content(level: &str, car: &str, extra: &[String]) -> (String, Vec<String>) {
-    let mut cars: Vec<String> = std::iter::once(car.to_string()).chain(extra.iter().cloned()).collect();
-    if cfg!(test) {
-        return (level.to_string(), cars);
-    }
+/// `cargo run -p revvy-client -- <pista> [auto] [más autos…]` arranca en la pista, sin
+/// menú. Sin autos van `car` y `extra_cars` de la config.
+pub fn cli_race(config: &ClientConfig) -> Option<Race> {
     let args: Vec<String> = std::env::args().skip(1).filter(|arg| !arg.starts_with('-')).collect();
-    let level = args.first().cloned().unwrap_or_else(|| level.to_string());
-    if args.len() > 1 {
-        cars = args[1..].to_vec();
-    }
-    (level, cars)
+    let defaults: Vec<String> = std::iter::once(config.car.clone()).chain(config.extra_cars.iter().cloned()).collect();
+    race_from_args(&args, &defaults)
 }
 
-fn resolve_content(base: &Path, spec: &str) -> PathBuf {
+fn race_from_args(args: &[String], default_cars: &[String]) -> Option<Race> {
+    let (level, cars) = args.split_first()?;
+    let cars = if cars.is_empty() { default_cars } else { cars };
+    Some(Race {
+        level: level.clone(),
+        cars: cars.to_vec(),
+    })
+}
+
+/// Un id dentro de `base`, o una ruta si tiene separadores.
+pub fn resolve_content(base: &Path, spec: &str) -> PathBuf {
     let path = PathBuf::from(spec);
     if path.is_absolute() || spec.contains('/') || spec.contains('\\') {
         path
@@ -347,6 +365,17 @@ mod tests {
         });
         assert_eq!(c.throttle, 0.0);
         assert_eq!(c.steer, -1.0);
+    }
+
+    #[test]
+    fn cli_args_skip_the_menu() {
+        let defaults = ["phim_calcure".to_string(), "revvy_buggy".to_string()];
+        assert_eq!(race_from_args(&[], &defaults), None);
+        let race = race_from_args(&["nhood1".into()], &defaults).unwrap();
+        assert_eq!(race.level, "nhood1");
+        assert_eq!(race.cars, defaults);
+        let race = race_from_args(&["nhood1".into(), "revvy_buggy".into()], &defaults).unwrap();
+        assert_eq!(race.cars, ["revvy_buggy"]);
     }
 
     #[test]

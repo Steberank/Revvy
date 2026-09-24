@@ -14,8 +14,6 @@ mod vulkan_icd;
 
 pub use scene::{CameraView, Scene};
 
-use crate::ui::HudInfo;
-
 pub struct Gpu {
     surface: wgpu::Surface<'static>,
     device: wgpu::Device,
@@ -141,12 +139,13 @@ impl Gpu {
         }
     }
 
+    /// Un frame: la escena desde `camera` (o solo el clear) y encima la UI de `ui`.
     pub fn render(
         &mut self,
         window: &Window,
         camera: Option<&CameraView>,
         models: &[glam::Mat4],
-        hud: &HudInfo,
+        ui: impl FnMut(&mut egui::Ui),
     ) -> anyhow::Result<()> {
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame)
@@ -162,9 +161,7 @@ impl Gpu {
         };
 
         let raw_input = self.egui_state.take_egui_input(window);
-        let mut full_output = self
-            .egui_ctx
-            .run_ui(raw_input, |ui| crate::ui::show_drive(ui.ctx(), hud));
+        let mut full_output = self.egui_ctx.run_ui(raw_input, ui);
         self.egui_state
             .handle_platform_output(window, full_output.platform_output);
 

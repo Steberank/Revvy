@@ -95,6 +95,14 @@ impl TrackLoad {
             collision: true,
         }
     }
+
+    /// Para mirarla sin manejar, como el fondo del menú.
+    pub fn visual_only() -> Self {
+        Self {
+            visual: true,
+            collision: false,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -133,6 +141,10 @@ pub struct Visual {
     pub color_key: bool,
     /// Cielo en el orden de un cubemap: +X, −X, +Y, −Y, +Z, −Z.
     pub sky: Option<[image::RgbaImage; 6]>,
+    /// El fondo donde no hay geometría ni cielo. En una pista de Re-Volt es `FOGCOLOR`
+    /// (`SetBackgroundColor`): el techo que falta en market1 se ve marrón oscuro. `None`
+    /// en las `.glb`: el fondo de Revvy.
+    pub background: Option<[u8; 3]>,
 }
 
 #[derive(Clone, Debug)]
@@ -197,6 +209,21 @@ impl CarDef {
     pub fn param(&self, key: &str) -> Option<&str> {
         self.revolt.as_ref()?.params.keys.get(key).map(String::as_str)
     }
+}
+
+/// El nombre de la pista para mostrar, sin cargarla: `NAME` del `.inf` en una pista de
+/// Re-Volt, `name` del `track.toml` en una `.glb`.
+pub fn track_title(dir: &Path) -> Option<String> {
+    if let Some(toml_path) = find_file(dir, "track.toml") {
+        let text = std::fs::read_to_string(&toml_path).ok()?;
+        let value = toml::from_str::<toml::Value>(&text).ok()?;
+        if value.get("format").and_then(|v| v.as_str()) == Some("revvy-glb-v1") {
+            return value.get("name").and_then(|v| v.as_str()).map(str::to_owned);
+        }
+    }
+    let stem = dir.file_name()?.to_string_lossy().into_owned();
+    let inf_path = find_stem(dir, &stem, "inf")?;
+    inf::parse_track(&inf_path).ok().map(|inf| inf.name)
 }
 
 pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatError> {
@@ -331,6 +358,7 @@ pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatE
             textures: bmp::load_pages(dir, &stem),
             color_key: true,
             sky: load_sky(dir),
+            background: Some(track_inf.fog_color),
         })
     } else {
         None

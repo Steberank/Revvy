@@ -6,11 +6,17 @@ clear_color = [0.28, 0.48, 0.86, 1.0]
 # Raíz de contenido (legacy y nuevo), con el layout de la carpeta de Re-Volt:
 # levels/, cars/, wavs/, gfx/. Relativa a la raíz del repo, o absoluta.
 content_root = "content"
-# Carpeta dentro de <content_root>/levels, o una ruta: una pista de Re-Volt o una .glb.
+# Pista de fondo del menú: carpeta dentro de <content_root>/levels, o una ruta.
+# Offline → Seleccionar pista lista todas las pistas de <content_root>/levels. La portada
+# es <content_root>/gfx/<pista>.bmp (Re-Volt) o preview.png en la carpeta (.glb).
+# Para saltear el menú: cargo run -p revvy-client -- <pista> [auto] [más autos…]
 level = "nhood1"
-# Carpeta dentro de <content_root>/cars, o una ruta: un auto de Re-Volt o uno propio.
+# Auto del jugador del teclado: carpeta dentro de <content_root>/cars, o una ruta.
+# Puede ser de Re-Volt o propio.
 car = "phim_calcure"
 # Más autos en los puestos siguientes de la grilla. Tab cambia el auto que se maneja.
 extra_cars = ["revvy_buggy"]
+# Nombre del jugador del teclado en la sala, hasta que exista el perfil.
+player_name = "Jugador 1"
 # Volumen maestro de efectos, 0–127 (`SFX_DEFAULT_VOL` de Re-Volt es 90).
 sfx_volume = 90

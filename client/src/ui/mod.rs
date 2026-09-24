@@ -1,6 +1,7 @@
-//! UI inmediata: ayuda de teclas y velocímetro.
+//! UI inmediata: el menú, y en la carrera la ayuda de teclas y el velocímetro.
 
 pub mod hud;
+pub mod menu;
 pub mod room;
 
 /// Lo que el frame muestra encima de la escena.

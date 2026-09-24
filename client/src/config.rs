@@ -11,16 +11,21 @@ pub struct ClientConfig {
     /// Raíz de contenido (`levels/`, `cars/`, `wavs/`, `gfx/`). Relativa al repo o absoluta.
     #[serde(default = "default_content_root")]
     pub content_root: String,
-    /// Id dentro de `<content_root>/levels`, o una ruta a la carpeta del mapa.
+    /// Pista de fondo del menú: id dentro de `<content_root>/levels`, o una ruta a la
+    /// carpeta del mapa.
     #[serde(default = "default_level")]
     pub level: String,
-    /// Id dentro de `<content_root>/cars`, o una ruta a la carpeta del auto.
+    /// Auto del jugador del teclado: id dentro de `<content_root>/cars`, o una ruta a la
+    /// carpeta del auto.
     #[serde(default = "default_car")]
     pub car: String,
     /// Más autos en los puestos siguientes de la grilla, quietos hasta que se los maneje
     /// (Tab cambia de auto). Pueden ser de Re-Volt o propios.
     #[serde(default)]
     pub extra_cars: Vec<String>,
+    /// Nombre del jugador del teclado en la sala, hasta que exista el perfil.
+    #[serde(default = "default_player_name")]
+    pub player_name: String,
     /// Volumen maestro de efectos, 0–127.
     #[serde(default = "default_sfx_volume")]
     pub sfx_volume: i32,
@@ -36,6 +41,10 @@ fn default_level() -> String {
 
 fn default_car() -> String {
     "phim_calcure".into()
+}
+
+fn default_player_name() -> String {
+    "Jugador 1".into()
 }
 
 fn default_sfx_volume() -> i32 {
@@ -104,5 +113,6 @@ mod tests {
         for car in &config.extra_cars {
             assert!(config.content_dir().join("cars").join(car).is_dir(), "{car}");
         }
+        assert!(!config.player_name.is_empty());
     }
 }

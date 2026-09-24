@@ -54,6 +54,7 @@ pub fn load(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatError> 
                 .collect(),
             color_key: false,
             sky: None,
+            background: None,
         }
     });
     let collision = options.collision.then(|| Collision {

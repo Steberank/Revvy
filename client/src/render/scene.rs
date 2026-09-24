@@ -359,6 +359,20 @@ impl Scene {
         );
     }
 
+    /// Pista sin cielo: el fondo es liso, del color de la pista (`FOGCOLOR` en las de
+    /// Re-Volt) o el de Revvy. No queda el cielo de la pista anterior.
+    pub fn clear_sky(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, background: Option<[u8; 3]>) {
+        let color = background.map_or(SKY_PLACEHOLDER, |[r, g, b]| [r, g, b, 255]);
+        let placeholder = solid_cube(device, queue, color);
+        self.sky_bind = sky_bind_group(
+            device,
+            &self.sky_layout,
+            &self.sky_uniform,
+            &placeholder,
+            &self.sky_sampler,
+        );
+    }
+
     pub fn draw(
         &self,
         queue: &wgpu::Queue,
@@ -620,7 +634,7 @@ fn create_sky(
         min_filter: wgpu::FilterMode::Linear,
         ..Default::default()
     });
-    let placeholder = solid_cube(device, queue, [120, 170, 220, 255]);
+    let placeholder = solid_cube(device, queue, SKY_PLACEHOLDER);
     let bind = sky_bind_group(device, &layout, &uniform, &placeholder, &sampler);
     (pipeline, layout, uniform, sampler, bind)
 }
@@ -838,6 +852,8 @@ fn rgba_texture(
     texture.create_view(&wgpu::TextureViewDescriptor::default())
 }
 
+/// Color del cielo de una pista que no trae uno.
+const SKY_PLACEHOLDER: [u8; 4] = [120, 170, 220, 255];
 const VERTEX_STRIDE: u64 = 36;
 const UNIFORM_SIZE: u64 = 112;
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;

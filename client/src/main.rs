@@ -5,6 +5,7 @@ mod config;
 mod drive;
 mod ecs;
 mod input;
+mod menu;
 mod network;
 mod platform;
 mod render;

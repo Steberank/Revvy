@@ -81,9 +81,9 @@ El corte que corre hoy es **manejo en una pista**: `load_track` + `load_car` →
 - Recomendación práctica: **RVGL** (el fan-remake open source de Re-Volt) ya tiene reverse-engineering documentado y código abierto de estos formatos — usalo como referencia cruzada para no reinventar el parsing desde cero y evitar errores sutiles de layout binario.
 - Estrategia para el **legado**: **no convertir** los archivos a un formato propio. Se parsean tal cual y se traducen en memoria al cargar (§0), así una pista/auto copiada manualmente a `levels/` o `cars/` funciona sin pasos intermedios.
 - Las pistas **nuevas** (Blender / Blockbench) **no** se exportan a `.w`/`.ncp`/`.prm`. Van en glTF 2.0 (`.glb`) + sidecar de layout. Ver secciones 6–8. El runtime unifica ambos orígenes detrás del trait `TrackAsset`.
-- Capa de traducción ya en uso: carpeta Re-Volt → `load_track(dir)` → `TrackAsset` en Y-up. Otro mapa u otro auto no piden código nuevo: `config/client.toml` (`level`, `car`) o los argumentos del cliente (`cargo run -p revvy-client -- nhood1 phim_calcure`). Ver §6.5.
+- Capa de traducción ya en uso: carpeta Re-Volt → `load_track(dir)` → `TrackAsset` en Y-up. Otro mapa u otro auto no piden código nuevo: la pista se elige en el menú (Offline → Seleccionar pista lista todas las de `levels/`) y el auto del teclado es `car` en `config/client.toml`. Con argumentos se saltea el menú: `cargo run -p revvy-client -- nhood1 phim_calcure`. Ver §6.5.
 - La traducción entrega todo en tipos de Revvy:
-  - mallas, texturas y cielo;
+  - mallas, texturas y cielo o, si la pista no tiene, el color de fondo (`FOGCOLOR` del `.inf`, como `SetBackgroundColor`);
   - la colisión de `TrackAsset.collision`: triángulos en Y arriba con el frente del lado de la normal del polígono (en una instancia espejada se invierte el orden, como con `RotTransPlane`), su `SurfaceType` y si son solo de cámara o solo de objetos;
   - la grilla de largada entera (`CarGridStarts`);
   - los sonidos de la pista (`TrackSounds`: banco y emisores);
@@ -647,7 +647,7 @@ Hoy `gltf_track.rs` lee `track.toml` (la escena es `visual.glb`, o la que diga `
 
 Negar solo Y deja el mundo zurdo y el mapa espejado (en nhood1 la primera curva sale a la izquierda). La conversión niega **X e Y**: es un giro, la derecha sigue siendo la derecha. `axes::position` y `axes::direction` hacen esa cuenta. Las matrices del `.fin` se aplican en espacio de archivo con la misma multiplicación que el `.prm` (`mul_rows`) y después pasan por `position`. El yaw de `STARTROT` queda `-turns · τ`: Re-Volt ubica el auto con `RotMatrixY(-turns)` y el giro de ejes no cambia el ángulo (`axes::yaw_from_turns`).
 
-La vista de manejo (`client/src/drive.rs`, `DriveView`) carga la pista y los autos y los pone en el motor de Revvy; solo usa tipos de Revvy. La conversión de esta sección la hace la capa de traducción al cargar. Los autos van en los puestos de la grilla: `car` y `extra_cars` en `config/client.toml`, o `cargo run -p revvy-client -- <pista> <auto> [más autos…]`.
+La vista de manejo (`client/src/drive.rs`, `DriveView`) carga la pista y los autos y los pone en el motor de Revvy; solo usa tipos de Revvy. La conversión de esta sección la hace la capa de traducción al cargar. Los autos van en los puestos de la grilla: primero los de los jugadores de la sala, después `extra_cars` de `config/client.toml`. `cargo run -p revvy-client -- <pista> <auto> [más autos…]` arranca directo en la carrera; Esc vuelve a la sala del menú.
 
 Teclas:
 

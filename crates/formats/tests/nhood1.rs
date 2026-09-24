@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use revvy_formats::{load_car, load_track, CarStat, Track, TrackLoad};
+use revvy_formats::{load_car, load_track, track_title, CarStat, Track, TrackLoad};
 
 fn repo(rel: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel)
@@ -85,6 +85,8 @@ fn nhood1_loads_meshes_zones_and_nodes() {
     assert_eq!(bank.folder, "hood");
     assert!(asset.sounds.emitters.len() >= 5, "emisores {}", asset.sounds.emitters.len());
     assert!(visual.color_key && visual.sky.is_some());
+    // `FOGCOLOR 80 144 192` del `.inf`: el fondo donde no hay cielo.
+    assert_eq!(visual.background, Some([80, 144, 192]));
 
     // El `.fin` guarda 8 caracteres: WHITEPOS es whitepost, BARRIERP es barrierpole.
     for name in ["whitepos", "barrierp", "ramp1", "bin"] {
@@ -165,6 +167,14 @@ fn nhood1_ai_nodes_follow_the_race() {
     assert_eq!(zone, last, "la vuelta no pasa por todas las zonas");
     // `AiNodeTotalDist` de nhood1 es 148003 unidades: 740 m.
     assert!((length - 740.0).abs() < 10.0, "vuelta de {length} m");
+}
+
+#[test]
+fn track_titles_come_from_inf_and_track_toml() {
+    let title = |rel: &str| track_title(&repo(rel));
+    assert_eq!(title("../../content/levels/nhood1").as_deref(), Some("Toys in the Hood 1"));
+    assert_eq!(title("../../content/levels/revvy_arena").as_deref(), Some("Revvy Arena"));
+    assert_eq!(title("../../content/levels/no_existe"), None);
 }
 
 #[test]
@@ -281,6 +291,7 @@ fn glb_arena_loads_visual_collision_surfaces_and_grid() {
     let asset = track.asset();
     let visual = asset.visual.as_ref().unwrap();
     assert!(!visual.meshes.is_empty() && !visual.color_key);
+    assert_eq!(visual.background, None, "una .glb usa el fondo de Revvy");
     let collision = asset.collision.as_ref().unwrap();
     let surfaces: std::collections::BTreeSet<&str> =
         collision.triangles.iter().map(|tri| tri.surface.name()).collect();

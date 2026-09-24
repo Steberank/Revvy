@@ -39,6 +39,9 @@ pub struct TrackInf {
     pub start_rot: f32,
     /// `STARTGRID`: tipo de grilla de `CarGridStarts`. Si falta, 0.
     pub start_grid_type: i32,
+    /// `FOGCOLOR`: el color de la niebla y del fondo. Si falta, negro, como en
+    /// `LevelInfo.cpp`.
+    pub fog_color: [u8; 3],
 }
 
 pub fn parse_track(path: &Path) -> Result<TrackInf, FormatError> {
@@ -74,6 +77,11 @@ pub fn parse_track(path: &Path) -> Result<TrackInf, FormatError> {
             start_grid = revolt_start_grid([nums[0], nums[1], nums[2]], turns, start_grid_type);
         }
     }
+    let fog_color = keys
+        .get("fogcolor")
+        .map(|value| numbers(value))
+        .filter(|nums| nums.len() >= 3)
+        .map_or([0; 3], |nums| [0, 1, 2].map(|i| nums[i].clamp(0.0, 255.0) as u8));
     Ok(TrackInf {
         name,
         keys,
@@ -81,6 +89,7 @@ pub fn parse_track(path: &Path) -> Result<TrackInf, FormatError> {
         start_pos,
         start_rot,
         start_grid_type,
+        fog_color,
     })
 }
 

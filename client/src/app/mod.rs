@@ -9,7 +9,7 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
 use crate::config::ClientConfig;
-use crate::drive::MapView;
+use crate::drive::DriveView;
 use crate::input::Input;
 use crate::render::Gpu;
 
@@ -32,7 +32,7 @@ struct App {
     window: Option<Arc<Window>>,
     gpu: Option<Gpu>,
     input: Input,
-    map: Option<MapView>,
+    map: Option<DriveView>,
     last_tick: Instant,
 }
 
@@ -58,7 +58,7 @@ impl ApplicationHandler for App {
         match Gpu::new(window.clone(), &self.config) {
             Ok(mut gpu) => {
                 tracing::info!("superficie wgpu lista");
-                match MapView::load() {
+                match DriveView::load(&self.config) {
                     Ok(map) => {
                         let device = gpu.device().clone();
                         let queue = gpu.queue().clone();
@@ -72,6 +72,7 @@ impl ApplicationHandler for App {
                             if let Some(sky) = map.sky() {
                                 scene.upload_sky(&device, &queue, sky);
                             }
+                            scene.upload_car(&device, &queue, map.car_parts(), map.car_texture());
                         }
                         self.map = Some(map);
                         self.gpu = Some(gpu);
@@ -79,7 +80,7 @@ impl ApplicationHandler for App {
                         self.last_tick = Instant::now();
                     }
                     Err(err) => {
-                        tracing::error!(%err, "no se pudo cargar nhood1");
+                        tracing::error!(%err, "no se pudo cargar la pista o el auto");
                         event_loop.exit();
                     }
                 }
@@ -120,13 +121,16 @@ impl ApplicationHandler for App {
                 let now = Instant::now();
                 let dt = now.saturating_duration_since(self.last_tick).as_secs_f32();
                 self.last_tick = now;
-                let keys = self.input.fly();
                 if let Some(map) = self.map.as_mut() {
-                    map.step(dt, keys);
+                    map.step(dt, &mut self.input);
                 }
+                self.input.end_frame();
                 let camera = self.map.as_ref().map(|map| map.camera());
+                let models = self.map.as_ref().map(|map| map.car_models());
+                let hud = self.map.as_ref().map(|map| map.hud()).unwrap_or_default();
                 if let Some(gpu) = self.gpu.as_mut() {
-                    if let Err(err) = gpu.render(&window, camera.as_ref()) {
+                    let models: &[glam::Mat4] = models.as_ref().map_or(&[], |m| m.as_slice());
+                    if let Err(err) = gpu.render(&window, camera.as_ref(), models, &hud) {
                         tracing::error!(%err, "falló el frame");
                         event_loop.exit();
                     }

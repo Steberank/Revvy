@@ -33,6 +33,12 @@ pub struct TrackInf {
     pub name: String,
     pub keys: BTreeMap<String, String>,
     pub start_grid: Vec<StartSlot>,
+    /// `STARTPOS` tal cual (espacio de Re-Volt).
+    pub start_pos: Option<[f32; 3]>,
+    /// `STARTROT` en vueltas (0 – 1).
+    pub start_rot: f32,
+    /// `STARTGRID`: tipo de grilla de `CarGridStarts`. Si falta, 0.
+    pub start_grid_type: i32,
 }
 
 pub fn parse_track(path: &Path) -> Result<TrackInf, FormatError> {
@@ -45,6 +51,19 @@ pub fn parse_track(path: &Path) -> Result<TrackInf, FormatError> {
             .into_owned()
     });
     let mut start_grid = Vec::new();
+    let start_pos = keys.get("startpos").and_then(|pos| {
+        let nums = numbers(pos);
+        (nums.len() >= 3).then(|| [nums[0], nums[1], nums[2]])
+    });
+    let start_rot = keys
+        .get("startrot")
+        .and_then(|v| numbers(v).first().copied())
+        .unwrap_or(0.0);
+    let start_grid_type = keys
+        .get("startgrid")
+        .and_then(|v| numbers(v).first().copied())
+        .map(|v| v as i32)
+        .unwrap_or(0);
     if let Some(pos) = keys.get("startpos") {
         let nums = numbers(pos);
         if nums.len() >= 3 {
@@ -62,6 +81,9 @@ pub fn parse_track(path: &Path) -> Result<TrackInf, FormatError> {
         name,
         keys,
         start_grid,
+        start_pos,
+        start_rot,
+        start_grid_type,
     })
 }
 
@@ -70,6 +92,7 @@ pub fn parse_car(text: &str) -> CarParams {
 }
 
 /// `CAR 0-28` de `CARINFO.TXT` rellena las claves que `parameters.txt` no trae.
+/// Son datos de Re-Volt: completan autos de Re-Volt, nunca un auto propio de Revvy.
 pub fn merge_stock_defaults(mut car: CarParams) -> CarParams {
     let defaults = parse_car_inner(stock_car_body(), false);
     for (key, value) in defaults.keys {
@@ -86,18 +109,32 @@ fn parse_car_inner(text: &str, warn_unknown: bool) -> CarParams {
     let mut wheel_models = Vec::new();
     let mut sections: Vec<String> = Vec::new();
     let mut unknown = Vec::new();
+    let mut last_keys: Vec<String> = Vec::new();
 
     for raw in text.lines() {
-        let line = strip_comment(raw).trim().to_string();
+        let line = strip_comment(rvgl_line(raw)).trim().to_string();
         if line.is_empty() {
+            continue;
+        }
+        // `ReadMat` lee nueve números seguidos: `Inertia` sigue en las dos líneas de abajo.
+        if starts_with_number(&line) && !last_keys.is_empty() {
+            for key in &last_keys {
+                if let Some(value) = keys.get_mut(key) {
+                    let value: &mut String = value;
+                    value.push(' ');
+                    value.push_str(&line);
+                }
+            }
             continue;
         }
         if line.ends_with('{') {
             sections = section_targets(line.trim_end_matches('{').trim());
+            last_keys.clear();
             continue;
         }
         if line == "}" {
             sections.clear();
+            last_keys.clear();
             continue;
         }
         let mut parts = line.split_whitespace();
@@ -112,6 +149,7 @@ fn parse_car_inner(text: &str, warn_unknown: bool) -> CarParams {
                 let file = model_parts.collect::<Vec<_>>().join(" ");
                 models.insert(index, unquote(&file));
             }
+            last_keys.clear();
             continue;
         }
 
@@ -141,9 +179,10 @@ fn parse_car_inner(text: &str, warn_unknown: bool) -> CarParams {
                 }
             }
         }
-        for stored in stored_keys {
-            keys.insert(stored, rest.clone());
+        for stored in &stored_keys {
+            keys.insert(stored.clone(), rest.clone());
         }
+        last_keys = stored_keys;
     }
 
     let stats = stats_from_keys(&keys);
@@ -158,6 +197,187 @@ fn parse_car_inner(text: &str, warn_unknown: bool) -> CarParams {
         keys,
         unknown,
     }
+}
+
+/// `CAR_INFO` de Re-Volt con las unidades del archivo (`TopSpeed` en mph, largos en
+/// unidades de Re-Volt). `ReadInit` convierte `TopSpeed` al leer; acá lo hace la física.
+#[derive(Clone, Debug, Default)]
+pub struct CarInfo {
+    pub name: String,
+    /// 0 = eléctrico, 1 = glow (nafta), 2 = otro. Elige el sonido de motor por defecto.
+    pub class: i32,
+    pub top_end: f32,
+    pub steer_rate: f32,
+    pub steer_mod: f32,
+    pub engine_rate: f32,
+    pub top_speed_mph: f32,
+    pub max_revs: f32,
+    pub down_force_mod: f32,
+    pub com: [f32; 3],
+    pub weapon: [f32; 3],
+    pub body: BodyInfo,
+    pub wheels: [WheelInfo; 4],
+    pub springs: [SpringInfo; 4],
+    /// Ruta de `COLL` tal cual está en el archivo (`cars/<id>/hull.hul`).
+    pub coll: Option<String>,
+    /// Ruta de `TPAGE`.
+    pub tpage: Option<String>,
+    /// `SFXENGINE` de RVGL. `None` o `"NONE"` usa el motor por defecto de la clase.
+    pub sfx_engine: Option<String>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct BodyInfo {
+    pub model_num: i32,
+    pub offset: [f32; 3],
+    pub mass: f32,
+    /// Tres filas, como `ReadMat`.
+    pub inertia: [[f32; 3]; 3],
+    pub gravity: f32,
+    pub hardness: f32,
+    pub resistance: f32,
+    pub ang_res: f32,
+    pub res_mod: f32,
+    pub grip: f32,
+    pub static_friction: f32,
+    pub kinetic_friction: f32,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct WheelInfo {
+    pub model_num: i32,
+    pub offset1: [f32; 3],
+    pub offset2: [f32; 3],
+    pub is_present: bool,
+    pub is_powered: bool,
+    pub is_turnable: bool,
+    pub steer_ratio: f32,
+    pub engine_ratio: f32,
+    pub radius: f32,
+    pub mass: f32,
+    pub gravity: f32,
+    pub max_pos: f32,
+    pub skid_width: f32,
+    pub toe_in: f32,
+    pub axle_friction: f32,
+    pub grip: f32,
+    pub static_friction: f32,
+    pub kinetic_friction: f32,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct SpringInfo {
+    pub model_num: i32,
+    pub offset: [f32; 3],
+    pub length: f32,
+    pub stiffness: f32,
+    pub damping: f32,
+    pub restitution: f32,
+}
+
+impl CarInfo {
+    /// Arma el `CAR_INFO` a partir de las claves (ya mezcladas con `CAR 0-28`).
+    pub fn from_params(params: &CarParams) -> Self {
+        let keys = &params.keys;
+        let real = |key: &str| keys.get(key).and_then(|v| first_number(v)).unwrap_or(0.0);
+        let vec3 = |key: &str| {
+            keys.get(key)
+                .map(|v| numbers(v))
+                .filter(|n| n.len() >= 3)
+                .map(|n| [n[0], n[1], n[2]])
+                .unwrap_or([0.0; 3])
+        };
+        let int = |key: &str| real(key) as i32;
+        let boolean = |key: &str| keys.get(key).is_some_and(|v| parse_bool(v));
+        let path = |key: &str| {
+            keys.get(key)
+                .map(|v| unquote(v))
+                .filter(|v| !v.is_empty() && !v.eq_ignore_ascii_case("none"))
+        };
+
+        let inertia = keys
+            .get("body.inertia")
+            .map(|v| numbers(v))
+            .filter(|n| n.len() >= 9)
+            .map(|n| [[n[0], n[1], n[2]], [n[3], n[4], n[5]], [n[6], n[7], n[8]]])
+            .unwrap_or([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
+
+        let wheel = |i: usize| {
+            let k = |name: &str| format!("wheel {i}.{name}");
+            WheelInfo {
+                model_num: keys.get(&k("modelnum")).and_then(|v| first_number(v)).map_or(-1, |v| v as i32),
+                offset1: vec3(&k("offset1")),
+                offset2: vec3(&k("offset2")),
+                is_present: boolean(&k("ispresent")),
+                is_powered: boolean(&k("ispowered")),
+                is_turnable: boolean(&k("isturnable")),
+                steer_ratio: real(&k("steerratio")),
+                engine_ratio: real(&k("engineratio")),
+                radius: real(&k("radius")),
+                mass: real(&k("mass")),
+                gravity: real(&k("gravity")),
+                max_pos: real(&k("maxpos")),
+                skid_width: real(&k("skidwidth")),
+                toe_in: real(&k("toein")),
+                axle_friction: real(&k("axlefriction")),
+                grip: real(&k("grip")),
+                static_friction: real(&k("staticfriction")),
+                kinetic_friction: real(&k("kineticfriction")),
+            }
+        };
+        let spring = |i: usize| {
+            let k = |name: &str| format!("spring {i}.{name}");
+            SpringInfo {
+                model_num: keys.get(&k("modelnum")).and_then(|v| first_number(v)).map_or(-1, |v| v as i32),
+                offset: vec3(&k("offset")),
+                length: real(&k("length")),
+                stiffness: real(&k("stiffness")),
+                damping: real(&k("damping")),
+                restitution: real(&k("restitution")),
+            }
+        };
+
+        CarInfo {
+            name: params.name.clone(),
+            class: int("class"),
+            top_end: real("topend"),
+            steer_rate: real("steerrate"),
+            steer_mod: real("steermod"),
+            engine_rate: real("enginerate"),
+            top_speed_mph: real("topspeed"),
+            max_revs: real("maxrevs"),
+            down_force_mod: real("downforcemod"),
+            com: vec3("com"),
+            weapon: vec3("weapon"),
+            body: BodyInfo {
+                model_num: keys.get("body.modelnum").and_then(|v| first_number(v)).map_or(-1, |v| v as i32),
+                offset: vec3("body.offset"),
+                mass: real("body.mass"),
+                inertia,
+                gravity: real("body.gravity"),
+                hardness: real("body.hardness"),
+                resistance: real("body.resistance"),
+                ang_res: real("body.angres"),
+                res_mod: real("body.resmod"),
+                grip: real("body.grip"),
+                static_friction: real("body.staticfriction"),
+                kinetic_friction: real("body.kineticfriction"),
+            },
+            wheels: [wheel(0), wheel(1), wheel(2), wheel(3)],
+            springs: [spring(0), spring(1), spring(2), spring(3)],
+            coll: path("coll"),
+            tpage: path("tpage"),
+            sfx_engine: path("sfxengine"),
+        }
+    }
+}
+
+fn parse_bool(value: &str) -> bool {
+    let word = value
+        .split(|c: char| c.is_whitespace() || c == ',')
+        .find(|w| !w.is_empty())
+        .unwrap_or("");
+    matches!(word.to_ascii_lowercase().as_str(), "true" | "yes" | "1")
 }
 
 fn stats_from_keys(keys: &BTreeMap<String, String>) -> BTreeMap<CarStat, f32> {
@@ -239,8 +459,9 @@ fn push_range(out: &mut Vec<i32>, start: i32, end: i32) {
     }
 }
 
+/// El `CARINFO.TXT` de Re-Volt va versionado junto al crate: `rvsource/` no está en git.
 fn stock_car_body() -> &'static str {
-    extract_first_car_body(include_str!("../../../rvsource/CARINFO.TXT"))
+    extract_first_car_body(include_str!("../revolt/CARINFO.TXT"))
 }
 
 fn extract_first_car_body(text: &'static str) -> &'static str {
@@ -352,6 +573,30 @@ fn known_car_key(key: &str) -> bool {
             | "overtakebias"
             | "suspension"
             | "aggression"
+            // Claves de RVGL (líneas `;)`).
+            | "cpuselectable"
+            | "statistics"
+            | "tcarbox"
+            | "tshadow"
+            | "shadowindex"
+            | "shadowtable"
+            | "sfxengine"
+            | "sfxservo"
+            | "sfxhonk"
+            | "flippable"
+            | "flying"
+            | "clothfx"
+            | "hoodoffset"
+            | "hoodlook"
+            | "rearoffset"
+            | "rearlook"
+            | "fixedoffset"
+            | "fixedlook"
+            | "usedefault"
+            | "camber"
+            | "type"
+            | "transvel"
+            | "handling"
     )
 }
 
@@ -368,6 +613,19 @@ fn scan_keys(text: &str) -> BTreeMap<String, String> {
         keys.insert(key.to_ascii_lowercase(), rest);
     }
     keys
+}
+
+/// RVGL marca con `;)` las claves que el Re-Volt original ignora (para él es un
+/// comentario). Revvy lee como RVGL: la línea vale sin el prefijo.
+fn rvgl_line(line: &str) -> &str {
+    let trimmed = line.trim_start();
+    trimmed.strip_prefix(";)").unwrap_or(line)
+}
+
+fn starts_with_number(line: &str) -> bool {
+    line.chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_digit() || c == '-' || c == '+' || c == '.')
 }
 
 fn strip_comment(line: &str) -> &str {

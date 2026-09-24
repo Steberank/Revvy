@@ -26,11 +26,15 @@ pub mod lit;
 pub mod por;
 pub mod pro;
 
+pub use axes::REVOLT_TO_METERS;
 pub use bmp::load as load_bmp;
-pub use hul::{load as load_hull, HullSphere};
-pub use inf::CarStat;
+pub use fin::Instance as LegacyInstance;
+pub use fob::{FobObject, SOUND_3D_TYPE, SPRINKLER_TYPE};
+pub use hul::{load as load_hull, load_native_spheres, HullSphere};
+pub use inf::{BodyInfo, CarInfo, CarStat, SpringInfo, WheelInfo};
 pub use layout::TrackLayout;
 pub use mesh::VisualMesh;
+pub use ncp::{NcpFile, NcpGrid, NcpPoly};
 
 #[derive(Debug, thiserror::Error)]
 pub enum FormatError {
@@ -42,6 +46,9 @@ pub enum FormatError {
     GlbNotImplemented,
     #[error("la carpeta mezcla un .glb con un mundo .w")]
     MixedFormat,
+    /// Un auto propio de Revvy trae sus parámetros: nunca se completa con los de Re-Volt.
+    #[error("auto de Revvy (car.toml): todavía no está implementado")]
+    RevvyCarNotImplemented,
     #[error("falta {0}")]
     Missing(String),
 }
@@ -91,6 +98,26 @@ pub struct TrackAsset {
     pub visual: Option<Visual>,
     pub collision: Option<Collision>,
     pub layout: TrackLayout,
+    /// Datos del legado en el espacio de Re-Volt (sin girar ejes ni escalar).
+    /// Los consume la física portada de Re-Volt. `None` en pistas glTF.
+    pub legacy: Option<LegacyLevel>,
+}
+
+/// Lo que el motor de Re-Volt lee de la carpeta del nivel, sin convertir.
+#[derive(Clone, Debug)]
+pub struct LegacyLevel {
+    /// Nombre de la carpeta (`nhood1`). Elige el banco de sonidos del nivel.
+    pub dir_name: String,
+    pub start_pos: [f32; 3],
+    /// `STARTROT` en vueltas.
+    pub start_rot: f32,
+    pub start_grid_type: i32,
+    /// `.ncp` del mundo con su grilla.
+    pub world: NcpFile,
+    /// Instancias del `.fin` y el `.ncp` de su modelo (vacío si no choca).
+    pub instances: Vec<(LegacyInstance, Vec<NcpPoly>)>,
+    /// Objetos del `.fob` (sonidos 3D, regadores, rayitos…).
+    pub objects: Vec<FobObject>,
 }
 
 #[derive(Clone, Debug)]
@@ -129,8 +156,16 @@ impl Track for LoadedTrack {
 pub struct CarDef {
     pub id: String,
     pub name: String,
+    /// Carpeta del auto.
+    pub dir: PathBuf,
     pub body: Vec<VisualMesh>,
-    pub wheels: Vec<VisualMesh>,
+    /// Una lista de meshes por rueda (FL, FR, BL, BR), del `ModelNum` de cada `WHEEL`.
+    pub wheels: [Vec<VisualMesh>; 4],
+    /// `TPAGE` del auto. Todas las caras con textura usan esta página.
+    pub texture: Option<image::RgbaImage>,
+    /// Esferas del `.hul` en espacio de Re-Volt: `[x, y, z, radio]`.
+    pub hull_spheres: Vec<[f32; 4]>,
+    pub info: CarInfo,
     pub params: inf::CarParams,
 }
 
@@ -192,7 +227,34 @@ pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatE
 
     let mut layout = TrackLayout::default();
     let track_inf = inf::parse_track(&inf_path)?;
-    layout.start_grid = track_inf.start_grid;
+    layout.start_grid = track_inf.start_grid.clone();
+
+    let legacy = if options.collision {
+        let world_ncp = ncp::parse_native(&ncp_path)?;
+        let instances = match find_stem(dir, &stem, "fin") {
+            Some(path) => {
+                let instances = fin::parse(&path)?;
+                let polys = fin::native_collision(dir, &instances)?;
+                instances.into_iter().zip(polys).collect()
+            }
+            None => Vec::new(),
+        };
+        let objects = match find_stem(dir, &stem, "fob") {
+            Some(path) => fob::parse_objects(&path)?,
+            None => Vec::new(),
+        };
+        Some(LegacyLevel {
+            dir_name: id.clone(),
+            start_pos: track_inf.start_pos.unwrap_or([0.0; 3]),
+            start_rot: track_inf.start_rot,
+            start_grid_type: track_inf.start_grid_type,
+            world: world_ncp,
+            instances,
+            objects,
+        })
+    } else {
+        None
+    };
 
     if let Some(path) = find_stem(dir, &stem, "taz") {
         layout.zones = taz::parse(&path)?;
@@ -256,6 +318,7 @@ pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatE
             visual,
             collision,
             layout,
+            legacy,
         },
     })
 }
@@ -264,13 +327,19 @@ pub fn parse_car_text(text: &str) -> inf::CarParams {
     inf::parse_car(text)
 }
 
+/// Auto de Re-Volt: `parameters.txt` (o `.inf`) encima de los defaults de `CARINFO.TXT`.
+/// Una carpeta con `car.toml` es un auto propio y no pasa por acá.
 pub fn load_car(dir: &Path) -> Result<CarDef, FormatError> {
+    if find_file(dir, "car.toml").is_some() {
+        return Err(FormatError::RevvyCarNotImplemented);
+    }
     let params_path = find_file(dir, "parameters.txt")
         .or_else(|| find_with_extension(dir, "inf"))
         .ok_or_else(|| FormatError::Missing("parameters.txt o .inf".into()))?;
     let text =
         std::fs::read_to_string(&params_path).map_err(|err| FormatError::io(&params_path, err))?;
     let params = inf::merge_stock_defaults(inf::parse_car(&text));
+    let info = CarInfo::from_params(&params);
     let body_index = params
         .body_model
         .ok_or_else(|| FormatError::Missing("BODY.ModelNum".into()))?;
@@ -280,14 +349,38 @@ pub fn load_car(dir: &Path) -> Result<CarDef, FormatError> {
         .cloned()
         .ok_or_else(|| FormatError::Missing(format!("MODEL {body_index}")))?;
     let body = load_named_mesh(dir, &body_name)?;
-    let mut wheels = Vec::new();
-    for index in &params.wheel_models {
-        if let Some(name) = params.models.get(index) {
+    let mut wheels: [Vec<VisualMesh>; 4] = Default::default();
+    for (slot, wheel) in info.wheels.iter().enumerate() {
+        if !wheel.is_present || wheel.model_num < 0 {
+            continue;
+        }
+        if let Some(name) = params.models.get(&wheel.model_num) {
             if !name.eq_ignore_ascii_case("none") {
-                wheels.extend(load_named_mesh(dir, name)?);
+                wheels[slot] = load_named_mesh(dir, name)?;
             }
         }
     }
+    let texture = info.tpage.as_deref().and_then(|tpage| {
+        let file_name = Path::new(tpage).file_name()?.to_string_lossy().into_owned();
+        let path = find_file(dir, &file_name)?;
+        match bmp::load(&path) {
+            Ok(image) => Some(image),
+            Err(err) => {
+                tracing::warn!(%err, tpage, "textura de auto ilegible");
+                None
+            }
+        }
+    });
+    let hull_spheres = match info.coll.as_deref().and_then(|coll| {
+        let file_name = Path::new(coll).file_name()?.to_string_lossy().into_owned();
+        find_file(dir, &file_name)
+    }) {
+        Some(path) => hul::load_native_spheres(&path)?,
+        None => {
+            tracing::warn!("auto sin .hul: el cuerpo no choca con el mundo");
+            Vec::new()
+        }
+    };
     let id = dir
         .file_name()
         .unwrap_or_default()
@@ -296,8 +389,12 @@ pub fn load_car(dir: &Path) -> Result<CarDef, FormatError> {
     Ok(CarDef {
         id,
         name: params.name.clone(),
+        dir: dir.to_path_buf(),
         body,
         wheels,
+        texture,
+        hull_spheres,
+        info,
         params,
     })
 }

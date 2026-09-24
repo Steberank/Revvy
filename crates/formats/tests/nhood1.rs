@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use revvy_formats::{load_car, load_track, CarStat, Track, TrackLoad};
+use revvy_formats::{load_car, load_track, CarStat, FormatError, Track, TrackLoad};
 
 fn repo(rel: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel)
@@ -8,7 +8,7 @@ fn repo(rel: &str) -> PathBuf {
 
 #[test]
 fn nhood1_loads_meshes_zones_and_nodes() {
-    let dir = repo("../../ServerREVOLT/levels/nhood1");
+    let dir = repo("../../content/levels/nhood1");
     let track = load_track(&dir, TrackLoad::default()).expect("nhood1");
     assert_eq!(track.id(), "nhood1");
 
@@ -87,18 +87,18 @@ fn nhood1_loads_meshes_zones_and_nodes() {
         traveled += there.distance(here);
         here = there;
         id = next;
-        if traveled > 30.0 {
+        if traveled > 15.0 {
             break;
         }
     }
     let right = glam::Vec3::Y.cross(forward);
     let ahead = here - start.pos;
     assert!(
-        ahead.dot(forward) > 5.0,
+        ahead.dot(forward) > 2.5,
         "el auto no mira la pista: adelante={forward:?} hacia={ahead:?}"
     );
     assert!(
-        ahead.dot(right) > 2.0,
+        ahead.dot(right) > 1.0,
         "la primera curva de nhood1 no es a la derecha: lateral={}",
         ahead.dot(right)
     );
@@ -135,7 +135,7 @@ fn pici_fan_header_v256_loads() {
 
 #[test]
 fn collision_only_skips_visual() {
-    let dir = repo("../../ServerREVOLT/levels/nhood1");
+    let dir = repo("../../content/levels/nhood1");
     let track = load_track(&dir, TrackLoad::collision_only()).unwrap();
     assert!(track.asset().visual.is_none());
     assert!(track.asset().collision.as_ref().unwrap().triangles.len() > 500);
@@ -147,7 +147,7 @@ fn car_prm_and_parameters_become_car_def() {
     let car = load_car(&dir).expect("maverick");
     assert_eq!(car.name, "Maverick");
     assert!(!car.body.is_empty());
-    assert!(!car.wheels.is_empty());
+    assert!(car.wheels.iter().all(|wheel| !wheel.is_empty()));
     assert!(car.stat(CarStat::Grip).unwrap() > 0.0);
     assert!(car.stat(CarStat::Mass).unwrap() > 0.0);
     assert!(car.stat(CarStat::Engine).is_some());
@@ -178,4 +178,21 @@ fn glb_is_not_implemented_and_mixed_folders_fail() {
     std::fs::write(mixed.join("visual.glb"), b"glb").unwrap();
     let err = load_track(&mixed, TrackLoad::default()).unwrap_err();
     assert!(err.to_string().contains("mezcla"), "{err}");
+}
+
+#[test]
+fn a_revvy_car_never_loads_with_revolt_parameters() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("revvy_car_with_parameters");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::copy(
+        repo("../../content/cars/phim_calcure/parameters.txt"),
+        dir.join("parameters.txt"),
+    )
+    .unwrap();
+    std::fs::write(dir.join("car.toml"), "id = \"propio\"\n").unwrap();
+    match load_car(&dir) {
+        Err(FormatError::RevvyCarNotImplemented) => {}
+        Err(other) => panic!("{other}"),
+        Ok(_) => panic!("se cargó como auto de Re-Volt"),
+    }
 }

@@ -143,6 +143,112 @@ pub fn parse(path: &Path) -> Result<Vec<CollisionTri>, FormatError> {
     Ok(triangles)
 }
 
+/// `NEWCOLLPOLY` tal cual está en el archivo: espacio de Re-Volt, sin girar
+/// ejes ni pasar a metros. La física portada de Re-Volt trabaja con esto.
+#[derive(Clone, Debug)]
+pub struct NcpPoly {
+    pub kind: u32,
+    pub material: u32,
+    /// Normal (a, b, c) y d: la distancia de un punto es `n·p + d`.
+    pub plane: [f32; 4],
+    pub edges: [[f32; 4]; 4],
+    /// XMin, XMax, YMin, YMax, ZMin, ZMax.
+    pub bbox: [f32; 6],
+}
+
+/// `COLLGRID_DATA` y la lista de polígonos de cada celda, como la guarda el `.ncp` del mundo.
+#[derive(Clone, Debug)]
+pub struct NcpGrid {
+    pub x_start: f32,
+    pub z_start: f32,
+    pub x_num: f32,
+    pub z_num: f32,
+    pub grid_size: f32,
+    pub cells: Vec<Vec<u32>>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct NcpFile {
+    pub polys: Vec<NcpPoly>,
+    pub grid: Option<NcpGrid>,
+}
+
+/// `LoadNewCollPolys` + `LoadGridInfo`. El `.ncp` de una instancia no trae grilla.
+pub fn parse_native(path: &Path) -> Result<NcpFile, FormatError> {
+    let bytes = std::fs::read(path).map_err(|err| FormatError::io(path, err))?;
+    if bytes.len() < 2 {
+        return Ok(NcpFile::default());
+    }
+    let mut reader = Reader::new(bytes.as_slice());
+    let count = reader.u16()? as usize;
+    let mut polys = Vec::with_capacity(count);
+    for _ in 0..count {
+        let kind = reader.u32()?;
+        let material = reader.u32()?;
+        let mut plane = [0.0; 4];
+        for value in &mut plane {
+            *value = reader.f32()?;
+        }
+        let mut edges = [[0.0; 4]; 4];
+        for edge in &mut edges {
+            for value in edge.iter_mut() {
+                *value = reader.f32()?;
+            }
+        }
+        let mut bbox = [0.0; 6];
+        for value in &mut bbox {
+            *value = reader.f32()?;
+        }
+        polys.push(NcpPoly {
+            kind,
+            material,
+            plane,
+            edges,
+            bbox,
+        });
+    }
+    let consumed = 2 + count * 112;
+    let grid = if bytes.len() >= consumed + 20 {
+        Some(parse_grid(path, &mut reader, count)?)
+    } else {
+        None
+    };
+    Ok(NcpFile { polys, grid })
+}
+
+fn parse_grid(path: &Path, reader: &mut Reader<&[u8]>, polys: usize) -> Result<NcpGrid, FormatError> {
+    let x_start = reader.f32()?;
+    let z_start = reader.f32()?;
+    let x_num = reader.f32()?;
+    let z_num = reader.f32()?;
+    let grid_size = reader.f32()?;
+    let cell_count = (x_num.round() as i64 * z_num.round() as i64).max(0) as usize;
+    let mut cells = Vec::with_capacity(cell_count);
+    for _ in 0..cell_count {
+        let n = reader.i32()?;
+        if n < 0 {
+            return Err(FormatError::parse(path, "celda de grilla con cantidad negativa"));
+        }
+        let mut cell = Vec::with_capacity(n as usize);
+        for _ in 0..n {
+            let index = reader.i32()?;
+            if index < 0 || index as usize >= polys {
+                return Err(FormatError::parse(path, format!("índice de grilla {index} fuera de rango")));
+            }
+            cell.push(index as u32);
+        }
+        cells.push(cell);
+    }
+    Ok(NcpGrid {
+        x_start,
+        z_start,
+        x_num,
+        z_num,
+        grid_size,
+        cells,
+    })
+}
+
 fn push_tri(out: &mut Vec<CollisionTri>, a: Vec3, b: Vec3, c: Vec3, surface: SurfaceType) {
     if !a.is_finite() || !b.is_finite() || !c.is_finite() {
         return;

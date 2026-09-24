@@ -1,4 +1,5 @@
 mod app;
+mod audio;
 mod assets_pipeline;
 mod config;
 mod drive;

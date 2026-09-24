@@ -14,6 +14,10 @@ use crate::FormatError;
 #[derive(Clone, Debug)]
 pub struct Instance {
     pub name: String,
+    /// `FILE_INSTANCE.Priority`. Con prioridad 0 la instancia es opcional (detalle).
+    pub priority: u8,
+    /// `INSTANCE_NO_OBJECT_COLLISION` (32), `INSTANCE_NO_CAMERA_COLLISION` (64), …
+    pub flag: u8,
     pub position: [f32; 3],
     pub matrix: [[f32; 3]; 3],
 }
@@ -35,7 +39,12 @@ pub fn parse(path: &Path) -> Result<Vec<Instance>, FormatError> {
             .iter()
             .map(|b| *b as char)
             .collect::<String>();
-        reader.skip(3 + 4 + 4 + 4)?;
+        // r, g, b y EnvRGB.
+        reader.skip(3 + 4)?;
+        let priority = reader.u8()?;
+        let flag = reader.u8()?;
+        // pad[2] y LodBias.
+        reader.skip(2 + 4)?;
         let position = reader.v3()?;
         let mut matrix = [[0.0; 3]; 3];
         for row in &mut matrix {
@@ -43,6 +52,8 @@ pub fn parse(path: &Path) -> Result<Vec<Instance>, FormatError> {
         }
         instances.push(Instance {
             name,
+            priority,
+            flag,
             position,
             matrix,
         });
@@ -137,6 +148,40 @@ pub fn bake_collision(
         "colisión de instancias"
     );
     Ok(triangles)
+}
+
+/// `.ncp` de cada modelo de instancia, en espacio del modelo y sin convertir ejes.
+/// `BuildInstanceCollPolys` los lleva al mundo con `RotTransPlane`; eso lo hace la física.
+/// El índice de cada entrada es el de la instancia en `instances`.
+pub fn native_collision(
+    level_dir: &Path,
+    instances: &[Instance],
+) -> Result<Vec<Vec<ncp::NcpPoly>>, FormatError> {
+    let mut cache: Vec<(String, std::rc::Rc<Vec<ncp::NcpPoly>>)> = Vec::new();
+    let mut out = Vec::with_capacity(instances.len());
+    for instance in instances {
+        let key = instance.name.to_ascii_lowercase();
+        let polys = match cache.iter().find(|(name, _)| *name == key) {
+            Some((_, polys)) => polys.clone(),
+            None => {
+                let polys = match find_sidecar(level_dir, &instance.name, "ncp") {
+                    Some(path) => match ncp::parse_native(&path) {
+                        Ok(file) => file.polys,
+                        Err(err) => {
+                            tracing::warn!(%err, name = %instance.name, "ncp de instancia ilegible");
+                            Vec::new()
+                        }
+                    },
+                    None => Vec::new(),
+                };
+                let polys = std::rc::Rc::new(polys);
+                cache.push((key, polys.clone()));
+                polys
+            }
+        };
+        out.push((*polys).clone());
+    }
+    Ok(out)
 }
 
 #[cfg(test)]

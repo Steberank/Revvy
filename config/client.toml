@@ -3,5 +3,12 @@ window_width = 1280
 window_height = 720
 # RGBA del clear de la superficie wgpu.
 clear_color = [0.28, 0.48, 0.86, 1.0]
-# Carpeta en ServerREVOLT/levels, o una ruta. Otro mapa no requiere cambiar código.
+# Raíz de contenido, como la carpeta del juego de Re-Volt: levels/, cars/, wavs/, gfx/.
+# Relativa a la raíz del repo, o absoluta.
+content_root = "content"
+# Carpeta dentro de <content_root>/levels, o una ruta. Otro mapa no requiere cambiar código.
 level = "nhood1"
+# Carpeta dentro de <content_root>/cars, o una ruta.
+car = "phim_calcure"
+# Volumen maestro de efectos, 0–127 (`SFX_DEFAULT_VOL` de Re-Volt es 90).
+sfx_volume = 90

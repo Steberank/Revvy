@@ -2,11 +2,14 @@
 //! (`DownVec`, `LookVec` en `Geom.cpp`). El espacio interno es Y-up.
 //! Negar solo Y lo vuelve zurdo y el mapa sale espejado: la primera curva
 //! de nhood1 queda a la izquierda. Negar X e Y es un giro, y la derecha sigue
-//! siendo la derecha. Una unidad de Re-Volt es un centímetro.
+//! siendo la derecha. Una unidad de Re-Volt mide 5 mm.
 
 use glam::{Mat3, Quat, Vec3};
 
-pub const REVOLT_TO_METERS: f32 = 0.01;
+/// Una unidad de Re-Volt en metros. El velocímetro de `units.h` convierte a km/h con
+/// `OGU2KPH_SPEED` 0.018 y a mph con `OGU2MPH_SPEED` 0.01118: las dos dan 0.005 m/s
+/// por unidad/s. Así la gravedad de Re-Volt (2200) es 11 m/s².
+pub const REVOLT_TO_METERS: f32 = 0.005;
 
 pub fn position(revolt: [f32; 3]) -> Vec3 {
     Vec3::new(

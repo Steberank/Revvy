@@ -3,12 +3,14 @@ window_width = 1280
 window_height = 720
 # RGBA del clear de la superficie wgpu.
 clear_color = [0.28, 0.48, 0.86, 1.0]
-# Raíz de contenido, como la carpeta del juego de Re-Volt: levels/, cars/, wavs/, gfx/.
-# Relativa a la raíz del repo, o absoluta.
+# Raíz de contenido (legacy y nuevo), con el layout de la carpeta de Re-Volt:
+# levels/, cars/, wavs/, gfx/. Relativa a la raíz del repo, o absoluta.
 content_root = "content"
-# Carpeta dentro de <content_root>/levels, o una ruta. Otro mapa no requiere cambiar código.
+# Carpeta dentro de <content_root>/levels, o una ruta: una pista de Re-Volt o una .glb.
 level = "nhood1"
-# Carpeta dentro de <content_root>/cars, o una ruta.
+# Carpeta dentro de <content_root>/cars, o una ruta: un auto de Re-Volt o uno propio.
 car = "phim_calcure"
+# Más autos en los puestos siguientes de la grilla. Tab cambia el auto que se maneja.
+extra_cars = ["revvy_buggy"]
 # Volumen maestro de efectos, 0–127 (`SFX_DEFAULT_VOL` de Re-Volt es 90).
 sfx_volume = 90

@@ -71,10 +71,7 @@ pub fn parse_track(path: &Path) -> Result<TrackInf, FormatError> {
                 .get("startrot")
                 .and_then(|v| numbers(v).first().copied())
                 .unwrap_or(0.0);
-            start_grid.push(StartSlot {
-                pos: axes::position([nums[0], nums[1], nums[2]]),
-                yaw: axes::yaw_from_turns(turns),
-            });
+            start_grid = revolt_start_grid([nums[0], nums[1], nums[2]], turns, start_grid_type);
         }
     }
     Ok(TrackInf {
@@ -85,6 +82,78 @@ pub fn parse_track(path: &Path) -> Result<TrackInf, FormatError> {
         start_rot,
         start_grid_type,
     })
+}
+
+/// `CarGridStarts`: (x, y, z, rotoff) de cada puesto, en unidades de Re-Volt y relativo
+/// a `STARTPOS` girado por `STARTROT`. El tipo 2 es del menú y tiene cuatro puestos.
+const CAR_GRID_STARTS: [&[[f32; 4]]; 4] = [
+    // Tipo 0: de a dos.
+    &[
+        [0.0, 0.0, 0.0, 0.0],
+        [256.0, 0.0, -40.0, 0.0],
+        [0.0, 0.0, -300.0, 0.0],
+        [256.0, 0.0, -340.0, 0.0],
+        [0.0, 0.0, -600.0, 0.0],
+        [256.0, 0.0, -640.0, 0.0],
+        [0.0, 0.0, -900.0, 0.0],
+        [256.0, 0.0, -940.0, 0.0],
+        [0.0, 0.0, -1200.0, 0.0],
+        [256.0, 0.0, -1240.0, 0.0],
+        [0.0, 0.0, -1500.0, 0.0],
+        [256.0, 0.0, -1540.0, 0.0],
+    ],
+    // Tipo 1: de a dos, espejado. El puesto 7 dice -950 en el original.
+    &[
+        [0.0, 0.0, 0.0, 0.0],
+        [-256.0, 0.0, -40.0, 0.0],
+        [0.0, 0.0, -300.0, 0.0],
+        [-256.0, 0.0, -340.0, 0.0],
+        [0.0, 0.0, -600.0, 0.0],
+        [-256.0, 0.0, -640.0, 0.0],
+        [0.0, 0.0, -900.0, 0.0],
+        [-256.0, 0.0, -950.0, 0.0],
+        [0.0, 0.0, -1200.0, 0.0],
+        [-256.0, 0.0, -1240.0, 0.0],
+        [0.0, 0.0, -1500.0, 0.0],
+        [-256.0, 0.0, -1540.0, 0.0],
+    ],
+    // Tipo 2: el del menú.
+    &[
+        [-1600.0, -250.0, -1100.0, 0.0],
+        [-1700.0, -250.0, -1200.0, 0.0],
+        [-1500.0, -250.0, -1000.0, 0.0],
+        [1600.0, -200.0, 1200.0, -0.25],
+    ],
+    // Tipo 3: de a tres, para carreras de 12.
+    &[
+        [0.0, 0.0, 300.0, 0.0],
+        [256.0, 0.0, 270.0, 0.0],
+        [-256.0, 0.0, 240.0, 0.0],
+        [-44.0, 0.0, 100.0, 0.0],
+        [212.0, 0.0, 70.0, 0.0],
+        [-300.0, 0.0, 40.0, 0.0],
+        [44.0, 0.0, -100.0, 0.0],
+        [300.0, 0.0, -130.0, 0.0],
+        [-212.0, 0.0, -160.0, 0.0],
+        [0.0, 0.0, -300.0, 0.0],
+        [256.0, 0.0, -330.0, 0.0],
+        [-256.0, 0.0, -360.0, 0.0],
+    ],
+];
+
+/// `GetCarStartGrid` para todos los puestos, ya en el espacio de Revvy. El puesto se
+/// gira con `RotMatrixY(-STARTROT)` y el auto mira con `RotMatrixY(-STARTROT - rotoff)`.
+pub fn revolt_start_grid(start_pos: [f32; 3], turns: f32, grid_type: i32) -> Vec<StartSlot> {
+    let table = CAR_GRID_STARTS[grid_type.clamp(0, CAR_GRID_STARTS.len() as i32 - 1) as usize];
+    let base = axes::position(start_pos);
+    let rotation = glam::Quat::from_rotation_y(axes::yaw_from_turns(turns));
+    table
+        .iter()
+        .map(|&[x, y, z, rotoff]| StartSlot {
+            pos: base + rotation * axes::position([x, y, z]),
+            yaw: axes::yaw_from_turns(turns + rotoff),
+        })
+        .collect()
 }
 
 pub fn parse_car(text: &str) -> CarParams {

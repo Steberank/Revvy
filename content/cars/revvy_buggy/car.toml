@@ -1,0 +1,97 @@
+# Auto propio de prueba de Revvy: parámetros escritos a mano, sin datos de Re-Volt.
+# Unidades SI, marco del auto (+X izquierda, +Y arriba, +Z adelante), relativo al centro de masa.
+name = "Revvy Buggy"
+body = "body.glb"
+collision = "collision.glb"
+
+[sound]
+engine = "electric"
+
+[vehicle]
+mass = 1.6
+inertia = [[0.035, 0.0, 0.0], [0.0, 0.042, 0.0], [0.0, 0.0, 0.012]]
+gravity = 11.0
+hardness = 0.1
+resistance = 0.001
+angular_resistance = 0.001
+angular_resistance_air = 25.0
+grip = 2.0
+static_friction = 0.8
+kinetic_friction = 0.4
+body_offset = [0.0, 0.0, 0.0]
+steer_rate = 3.0
+engine_rate = 5.0
+top_speed = 20.0
+down_force = 2.0
+
+[[vehicle.wheels]]
+present = true
+powered = false
+steered = true
+offset = [0.11, 0.0, 0.16]
+radius = 0.05
+mass = 0.12
+gravity = 11.0
+max_travel = 0.025
+skid_width = 0.05
+steer_ratio = -0.35
+engine_ratio = 0.0
+axle_friction = 0.00005
+grip = 3.0
+static_friction = 2.2
+kinetic_friction = 2.1
+spring = { stiffness = 550.0, damping = 7.0, restitution = -0.7 }
+
+[[vehicle.wheels]]
+present = true
+powered = false
+steered = true
+offset = [-0.11, 0.0, 0.16]
+radius = 0.05
+mass = 0.12
+gravity = 11.0
+max_travel = 0.025
+skid_width = 0.05
+steer_ratio = -0.35
+engine_ratio = 0.0
+axle_friction = 0.00005
+grip = 3.0
+static_friction = 2.2
+kinetic_friction = 2.1
+spring = { stiffness = 550.0, damping = 7.0, restitution = -0.7 }
+
+[[vehicle.wheels]]
+present = true
+powered = true
+steered = false
+offset = [0.11, 0.0, -0.15]
+radius = 0.05
+mass = 0.12
+gravity = 11.0
+max_travel = 0.025
+skid_width = 0.05
+steer_ratio = 0.0
+engine_ratio = 0.9
+axle_friction = 0.00005
+grip = 3.5
+static_friction = 2.4
+kinetic_friction = 2.3
+spring = { stiffness = 550.0, damping = 7.0, restitution = -0.7 }
+
+[[vehicle.wheels]]
+present = true
+powered = true
+steered = false
+offset = [-0.11, 0.0, -0.15]
+radius = 0.05
+mass = 0.12
+gravity = 11.0
+max_travel = 0.025
+skid_width = 0.05
+steer_ratio = 0.0
+engine_ratio = 0.9
+axle_friction = 0.00005
+grip = 3.5
+static_friction = 2.4
+kinetic_friction = 2.3
+spring = { stiffness = 550.0, damping = 7.0, restitution = -0.7 }

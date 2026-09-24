@@ -1,18 +1,16 @@
-//! Vista de manejo: la pista legacy, el auto con la física portada de Re-Volt, la
-//! cámara de persecución de `camera.cpp` (o una libre) y el sonido.
+//! Vista de manejo: la pista, los autos en el motor de Revvy (Rapier + vehículo de
+//! Revvy), la cámara de persecución (o una libre) y el sonido.
 //!
-//! La física y el sonido trabajan en el espacio de Re-Volt (5 mm, Y abajo). Solo la
-//! cámara y las matrices de dibujo pasan a Revvy (m, Y arriba).
+//! Todo en el espacio de Revvy: el contenido de Re-Volt ya llega traducido por
+//! `revvy-formats`, igual que el propio (`.glb`, `car.toml`).
 
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use glam::{Mat4, Vec3};
-use revvy_formats::{load_car, load_track, TrackLoad, VisualMesh};
-use revvy_physics::revolt::math::{build_look_matrix_forward, vec_mul_mat};
-use revvy_physics::revolt::units::OGU2MPH_SPEED;
-use revvy_physics::revolt::{Car, CollWorld, Controls, FollowCamera, Simulation};
-use revvy_physics::vehicle_controller::{model_matrix, to_revolt_dir, to_revolt_point, to_revvy_dir, to_revvy_point};
+use glam::{Mat4, Quat, Vec3};
+use revvy_formats::layout::StartSlot;
+use revvy_formats::{load_car, load_track, CarDef, TrackLoad, VisualMesh};
+use revvy_physics::{ChaseCamera, Controls, PhysicsWorld, VehicleSound};
 use winit::keyboard::KeyCode;
 
 use crate::audio::{Audio, Listener};
@@ -23,20 +21,31 @@ use crate::ui::HudInfo;
 
 const MOVE_SPEED: f32 = 12.0;
 const FAST_SPEED: f32 = 40.0;
-/// `CTRL_RANGE_MAX`: una tecla vale el recorrido entero del stick.
-const CTRL_RANGE_MAX: f32 = 127.0;
+/// Un frame no avanza más que esto (el tope del motor).
+const MAX_FRAME: f32 = 10.0 / 72.0;
+/// Con más autos que puestos, los que sobran van atrás del último, a esta distancia.
+const EXTRA_SLOT_GAP: f32 = 1.5;
+const MPS_TO_MPH: f32 = 2.236_94;
+
+/// Lo que el render necesita de un auto.
+pub struct CarView {
+    pub name: String,
+    /// Chasis y las cuatro ruedas (FL, FR, BL, BR).
+    pub parts: Vec<Vec<VisualMesh>>,
+    pub texture: Option<image::RgbaImage>,
+}
 
 pub struct DriveView {
     track_meshes: Vec<VisualMesh>,
     track_textures: Vec<(i16, image::RgbaImage)>,
+    color_key: bool,
     sky: Option<[image::RgbaImage; 6]>,
-    /// Chasis y las cuatro ruedas (FL, FR, BL, BR).
-    car_parts: Vec<Vec<VisualMesh>>,
-    car_texture: Option<image::RgbaImage>,
-    sim: Simulation,
-    follow: FollowCamera,
+    cars: Vec<CarView>,
+    world: PhysicsWorld,
+    chase: ChaseCamera,
     free: FreeCamera,
     free_mode: bool,
+    driven: usize,
     audio: Audio,
     listener_pos: Vec3,
 }
@@ -50,63 +59,64 @@ struct FreeCamera {
 impl DriveView {
     pub fn load(config: &ClientConfig) -> anyhow::Result<Self> {
         let content = config.content_dir();
-        let (level, car) = cli_content(&config.level, &config.car);
+        let (level, car_names) = cli_content(&config.level, &config.car, &config.extra_cars);
         let level_dir = resolve_content(&content.join("levels"), &level);
-        let car_dir = resolve_content(&content.join("cars"), &car);
 
-        tracing::info!(level = %level_dir.display(), "cargando pista legacy");
+        tracing::info!(pista = %level_dir.display(), "cargando pista");
         let track = load_track(&level_dir, TrackLoad::default())?;
-        let legacy = track
-            .asset
-            .legacy
-            .clone()
-            .context("la pista no trae datos de Re-Volt para la física")?;
+        let collision = track.asset.collision.as_ref().context("la pista no trae colisión")?;
+        let mut world = PhysicsWorld::new(collision);
         let visual = track.asset.visual.as_ref();
-        let track_meshes = visual.map(|v| v.meshes.clone()).unwrap_or_default();
-        let track_textures = visual.map(|v| v.textures.clone()).unwrap_or_default();
-        tracing::info!(meshes = track_meshes.len(), "pista lista");
 
-        tracing::info!(car = %car_dir.display(), "cargando auto");
-        let car_def = load_car(&car_dir)?;
-        tracing::info!(
-            name = %car_def.info.name,
-            top_speed_mph = car_def.info.top_speed_mph,
-            spheres = car_def.hull_spheres.len(),
-            "auto listo"
-        );
-        let mut car_parts = vec![car_def.body.clone()];
-        car_parts.extend(car_def.wheels.iter().cloned());
+        let mut defs: Vec<(CarDef, Vec3)> = Vec::new();
+        for (i, name) in car_names.iter().enumerate() {
+            let car_dir = resolve_content(&content.join("cars"), name);
+            tracing::info!(auto = %car_dir.display(), "cargando auto");
+            let car = load_car(&car_dir)?;
+            let (pos, yaw) = start_slot(&track.asset.layout.start_grid, i);
+            world.add_vehicle(&car.vehicle, pos, yaw);
+            tracing::info!(
+                nombre = %car.name,
+                origen = if car.revolt.is_some() { "Re-Volt" } else { "propio" },
+                tope_mph = car.vehicle.top_speed * MPS_TO_MPH,
+                "auto listo"
+            );
+            defs.push((car, pos));
+        }
 
-        let start = Car::start_grid(legacy.start_pos, legacy.start_rot, legacy.start_grid_type);
-        let world = CollWorld::new(&legacy);
-        tracing::info!(
-            polys = world.polys.len(),
-            mundo = world.n_world_polys,
-            celdas = world.cells.len(),
-            "colisión de Re-Volt"
-        );
-        let car = Car::new(&car_def.info, &car_def.hull_spheres);
-        let sim = Simulation::new(world, car, start);
-        let follow = FollowCamera::new(sim.car.body.centre.pos, &sim.car.body.centre.wmatrix);
-        let audio = Audio::new(&content, &legacy, &car_def, start.0, config.sfx_volume);
-
-        let eye = to_revvy_point(follow.wpos);
-        let forward = to_revvy_dir(follow.wmatrix.l);
+        let (pos, rot) = world.vehicle(0).pose(1.0);
+        let chase = ChaseCamera::new(pos, rot);
+        let sound_cars: Vec<(&CarDef, Vec3)> = defs.iter().map(|(car, pos)| (car, *pos)).collect();
+        let audio = Audio::new(&content, &track.asset.sounds, &sound_cars, config.sfx_volume);
+        let forward = chase.forward();
+        let cars = defs
+            .into_iter()
+            .map(|(car, _)| {
+                let mut parts = vec![car.body];
+                parts.extend(car.wheels);
+                CarView {
+                    name: car.name,
+                    parts,
+                    texture: car.texture,
+                }
+            })
+            .collect();
         Ok(Self {
-            track_meshes,
-            track_textures,
-            sky: load_sky(&level_dir),
-            car_parts,
-            car_texture: car_def.texture.clone(),
-            listener_pos: follow.wpos,
-            sim,
-            follow,
+            track_meshes: visual.map(|v| v.meshes.clone()).unwrap_or_default(),
+            track_textures: visual.map(|v| v.textures.clone()).unwrap_or_default(),
+            color_key: visual.is_some_and(|v| v.color_key),
+            sky: visual.and_then(|v| v.sky.clone()),
+            cars,
+            listener_pos: chase.eye,
             free: FreeCamera {
-                eye,
+                eye: chase.eye,
                 yaw: forward.x.atan2(forward.z),
                 pitch: forward.y.clamp(-1.0, 1.0).asin(),
             },
+            chase,
+            world,
             free_mode: false,
+            driven: 0,
             audio,
         })
     }
@@ -119,16 +129,17 @@ impl DriveView {
         &self.track_textures
     }
 
+    /// El negro puro de las texturas de la pista no se dibuja (pistas de Re-Volt).
+    pub fn color_key(&self) -> bool {
+        self.color_key
+    }
+
     pub fn sky(&self) -> Option<&[image::RgbaImage; 6]> {
         self.sky.as_ref()
     }
 
-    pub fn car_parts(&self) -> &[Vec<VisualMesh>] {
-        &self.car_parts
-    }
-
-    pub fn car_texture(&self) -> Option<&image::RgbaImage> {
-        self.car_texture.as_ref()
+    pub fn cars(&self) -> &[CarView] {
+        &self.cars
     }
 
     /// Un frame: mandos, física, cámara y sonido.
@@ -136,62 +147,62 @@ impl DriveView {
         if input.take_pressed(KeyCode::KeyC) {
             self.free_mode = !self.free_mode;
             if self.free_mode {
-                let camera = self.chase_camera();
-                let forward = (camera.target - camera.eye).normalize_or_zero();
+                let forward = self.chase.forward();
                 self.free = FreeCamera {
-                    eye: camera.eye,
+                    eye: self.chase.eye,
                     yaw: forward.x.atan2(forward.z),
                     pitch: forward.y.clamp(-1.0, 1.0).asin(),
                 };
             }
         }
+        if input.take_pressed(KeyCode::Tab) && self.cars.len() > 1 {
+            self.driven = (self.driven + 1) % self.cars.len();
+            let (pos, rot) = self.world.vehicle(self.driven).pose(self.world.alpha());
+            self.chase = ChaseCamera::new(pos, rot);
+        }
         let fly = input.fly();
         let keys = input.drive(!self.free_mode);
 
-        let report = self.sim.frame(dt, controls(keys));
-        // El mismo `TimeStep` que usó la física.
-        let time_step = dt.clamp(0.0, 10.0 / 72.0);
-        let body = &self.sim.car.body.centre;
-        self.follow.update(time_step, body.pos, &body.wmatrix, &self.sim.level);
+        let mut controls = vec![Controls::default(); self.cars.len()];
+        controls[self.driven] = controls_from(keys);
+        self.world.frame(dt, &controls);
+
+        let time_step = dt.clamp(0.0, MAX_FRAME);
+        let (pos, rot) = self.world.vehicle(self.driven).pose(self.world.alpha());
+        self.chase.update(time_step, pos, rot, &self.world);
         if self.free_mode {
             self.free.step(time_step, fly);
         }
 
         let listener = self.listener(time_step);
-        self.audio.update(&report.sfx, time_step, &listener);
+        let sounds: Vec<VehicleSound> = self
+            .world
+            .vehicles()
+            .iter()
+            .map(|vehicle| vehicle.sound(self.world.bodies()))
+            .collect();
+        self.audio.update(&sounds, time_step, &listener);
     }
 
-    /// Cámara que escucha, en el espacio de Re-Volt.
+    /// La cámara que escucha.
     fn listener(&mut self, time_step: f32) -> Listener {
-        if !self.free_mode {
-            self.listener_pos = self.follow.wpos;
-            return Listener {
-                pos: self.follow.wpos,
-                mat: self.follow.wmatrix,
-                vel: self.follow.vel,
-            };
-        }
-        let camera = self.free.view();
-        let pos = to_revolt_point(camera.eye);
-        let look = to_revolt_dir(camera.target - camera.eye);
-        let vel = if time_step > 1e-5 {
-            (pos - self.listener_pos) / time_step
+        let camera = self.camera();
+        let forward = (camera.target - camera.eye).normalize_or_zero();
+        let vel = if self.free_mode {
+            if time_step > 1e-5 {
+                (camera.eye - self.listener_pos) / time_step
+            } else {
+                Vec3::ZERO
+            }
         } else {
-            Vec3::ZERO
+            self.chase.vel
         };
-        self.listener_pos = pos;
+        self.listener_pos = camera.eye;
         Listener {
-            pos,
-            mat: build_look_matrix_forward(pos, pos + look),
+            pos: camera.eye,
+            forward,
+            up: Vec3::Y,
             vel,
-        }
-    }
-
-    fn chase_camera(&self) -> CameraView {
-        let eye = to_revvy_point(self.follow.wpos);
-        CameraView {
-            eye,
-            target: eye + to_revvy_dir(self.follow.wmatrix.l),
         }
     }
 
@@ -199,48 +210,60 @@ impl DriveView {
         if self.free_mode {
             self.free.view()
         } else {
-            self.chase_camera()
+            CameraView {
+                eye: self.chase.eye,
+                target: self.chase.target,
+            }
         }
     }
 
-    /// `DrawCar`: el chasis en `Pos + BodyOffset` y cada rueda en `WPos` con su `WMatrix`.
-    pub fn car_models(&self) -> [Mat4; 5] {
-        let car = &self.sim.car;
-        let body = &car.body.centre;
-        let body_pos = body.pos + vec_mul_mat(car.body_offset, &body.wmatrix);
-        let mut models = [model_matrix(&body.wmatrix, body_pos); 5];
-        for (i, wheel) in car.wheels.iter().enumerate() {
-            models[i + 1] = model_matrix(&wheel.wmatrix, wheel.wpos);
-        }
-        models
+    /// Chasis y ruedas de cada auto, cinco matrices por auto, interpoladas entre pasos.
+    pub fn car_models(&self) -> Vec<Mat4> {
+        let alpha = self.world.alpha();
+        self.world.vehicles().iter().flat_map(|vehicle| vehicle.models(alpha)).collect()
     }
 
     pub fn hud(&self) -> HudInfo {
         HudInfo {
-            speed_mph: self.sim.car.body.centre.vel.length() * OGU2MPH_SPEED,
+            speed_mph: self.world.vehicle(self.driven).velocity(self.world.bodies()).length() * MPS_TO_MPH,
+            car_name: self.cars[self.driven].name.clone(),
+            cars: self.cars.len(),
             free_camera: self.free_mode,
             sound: self.audio.enabled(),
         }
     }
 }
 
-/// `CRD_KeyboardInput` + `s_RationaliseControl`: teclas opuestas se anulan.
-fn controls(keys: DriveKeys) -> Controls {
-    let dx = match (keys.left, keys.right) {
-        (true, false) => -CTRL_RANGE_MAX,
-        (false, true) => CTRL_RANGE_MAX,
+/// Teclas del auto: las opuestas se anulan, como `s_RationaliseControl`.
+fn controls_from(keys: DriveKeys) -> Controls {
+    let steer = match (keys.left, keys.right) {
+        (true, false) => -1.0,
+        (false, true) => 1.0,
         _ => 0.0,
     };
-    let dy = match (keys.accelerate, keys.brake) {
-        (true, false) => -CTRL_RANGE_MAX,
-        (false, true) => CTRL_RANGE_MAX,
+    let throttle = match (keys.accelerate, keys.brake) {
+        (true, false) => 1.0,
+        (false, true) => -1.0,
         _ => 0.0,
     };
     Controls {
-        dx,
-        dy,
+        steer,
+        throttle,
         reset: keys.reset,
     }
+}
+
+/// El puesto `i` de la grilla. Si no alcanza, detrás del último.
+fn start_slot(grid: &[StartSlot], i: usize) -> (Vec3, f32) {
+    if let Some(slot) = grid.get(i) {
+        return (slot.pos, slot.yaw);
+    }
+    let Some(last) = grid.last() else {
+        return (Vec3::new(0.0, 0.5, 0.0), 0.0);
+    };
+    let back = Quat::from_rotation_y(last.yaw) * Vec3::NEG_Z;
+    let extra = (i + 1 - grid.len()) as f32 * EXTRA_SLOT_GAP;
+    (last.pos + back * extra, last.yaw)
 }
 
 impl FreeCamera {
@@ -283,22 +306,21 @@ impl FreeCamera {
 }
 
 fn look_dir(yaw: f32, pitch: f32) -> Vec3 {
-    Vec3::new(
-        yaw.sin() * pitch.cos(),
-        pitch.sin(),
-        yaw.cos() * pitch.cos(),
-    )
+    Vec3::new(yaw.sin() * pitch.cos(), pitch.sin(), yaw.cos() * pitch.cos())
 }
 
-/// `cargo run -p revvy-client -- <nivel> [auto]`.
-fn cli_content(level: &str, car: &str) -> (String, String) {
+/// `cargo run -p revvy-client -- <pista> [auto] [más autos…]`.
+fn cli_content(level: &str, car: &str, extra: &[String]) -> (String, Vec<String>) {
+    let mut cars: Vec<String> = std::iter::once(car.to_string()).chain(extra.iter().cloned()).collect();
     if cfg!(test) {
-        return (level.to_string(), car.to_string());
+        return (level.to_string(), cars);
     }
-    let mut args = std::env::args().skip(1).filter(|arg| !arg.starts_with('-'));
-    let level = args.next().unwrap_or_else(|| level.to_string());
-    let car = args.next().unwrap_or_else(|| car.to_string());
-    (level, car)
+    let args: Vec<String> = std::env::args().skip(1).filter(|arg| !arg.starts_with('-')).collect();
+    let level = args.first().cloned().unwrap_or_else(|| level.to_string());
+    if args.len() > 1 {
+        cars = args[1..].to_vec();
+    }
+    (level, cars)
 }
 
 fn resolve_content(base: &Path, spec: &str) -> PathBuf {
@@ -310,41 +332,27 @@ fn resolve_content(base: &Path, spec: &str) -> PathBuf {
     }
 }
 
-fn load_sky(level: &Path) -> Option<[image::RgbaImage; 6]> {
-    // `RenderSkybox`: ft, rt, bk, lt, tp, bt sobre +Z, -X, -Z, +X, arriba, abajo
-    // en el archivo. Con el cambio de ejes eso es +Z, +X, -Z, -X, +Y, -Y.
-    let names = ["sky_rt", "sky_lt", "sky_tp", "sky_bt", "sky_ft", "sky_bk"];
-    let mut faces = Vec::with_capacity(6);
-    for name in names {
-        let image = revvy_formats::load_bmp(&level.join(format!("{name}.bmp"))).ok()?;
-        faces.push(image);
-    }
-    let faces: [image::RgbaImage; 6] = faces.try_into().ok()?;
-    let (width, height) = (faces[0].width(), faces[0].height());
-    if width != height
-        || faces
-            .iter()
-            .any(|face| face.width() != width || face.height() != height)
-    {
-        return None;
-    }
-    Some(faces)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn opposite_keys_cancel_like_rationalise_control() {
-        let c = controls(DriveKeys {
+        let c = controls_from(DriveKeys {
             accelerate: true,
             brake: true,
             left: true,
             right: false,
             reset: false,
         });
-        assert_eq!(c.dy, 0.0);
-        assert_eq!(c.dx, -CTRL_RANGE_MAX);
+        assert_eq!(c.throttle, 0.0);
+        assert_eq!(c.steer, -1.0);
+    }
+
+    #[test]
+    fn extra_cars_line_up_behind_the_last_slot() {
+        let grid = [StartSlot { pos: Vec3::ZERO, yaw: 0.0 }];
+        let (pos, _) = start_slot(&grid, 2);
+        assert!((pos - Vec3::new(0.0, 0.0, -3.0)).length() < 1e-5);
     }
 }

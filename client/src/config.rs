@@ -17,6 +17,10 @@ pub struct ClientConfig {
     /// Id dentro de `<content_root>/cars`, o una ruta a la carpeta del auto.
     #[serde(default = "default_car")]
     pub car: String,
+    /// Más autos en los puestos siguientes de la grilla, quietos hasta que se los maneje
+    /// (Tab cambia de auto). Pueden ser de Re-Volt o propios.
+    #[serde(default)]
+    pub extra_cars: Vec<String>,
     /// Volumen maestro de efectos, 0–127.
     #[serde(default = "default_sfx_volume")]
     pub sfx_volume: i32,
@@ -97,5 +101,8 @@ mod tests {
         assert_eq!(config.clear_color.len(), 4);
         assert!(config.content_dir().join("levels").join(&config.level).is_dir());
         assert!(config.content_dir().join("cars").join(&config.car).is_dir());
+        for car in &config.extra_cars {
+            assert!(config.content_dir().join("cars").join(car).is_dir(), "{car}");
+        }
     }
 }

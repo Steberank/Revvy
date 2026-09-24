@@ -1,12 +1,15 @@
 //! Pipeline opaco: posición, normal, UV y textura. La colisión no se dibuja.
-//! Cada malla elige una matriz de modelo: la pista usa la identidad y el auto
+//! Cada malla elige una matriz de modelo: la pista usa la identidad y cada auto
 //! (chasis + cuatro ruedas) las que escribe la física en cada frame.
 
 use glam::{Mat4, Vec3};
 use revvy_formats::VisualMesh;
 
-/// Slot 0 = identidad (pista). 1 = chasis, 2..=5 = ruedas FL, FR, BL, BR.
-pub const MODEL_SLOTS: usize = 6;
+/// Autos que se pueden dibujar a la vez: los 32 de una sala (§5 de la arquitectura).
+pub const MAX_CARS: usize = 32;
+/// Slot 0 = identidad (pista). Después, cinco por auto: chasis y ruedas FL, FR, BL, BR.
+/// Con 32 autos son 161 matrices de 256 bytes (41 KB); cada frame se escriben las usadas.
+pub const MODEL_SLOTS: usize = 1 + 5 * MAX_CARS;
 /// Alineación mínima de offsets dinámicos de uniform en wgpu.
 const MODEL_STRIDE: u64 = 256;
 
@@ -237,16 +240,18 @@ impl Scene {
         self.depth = Some(texture.create_view(&wgpu::TextureViewDescriptor::default()));
     }
 
+    /// `color_key`: el negro puro de las texturas no se dibuja (pistas de Re-Volt).
     pub fn upload_track(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         meshes: &[VisualMesh],
         textures: &[(i16, image::RgbaImage)],
+        color_key: bool,
     ) {
         let views = textures
             .iter()
-            .map(|(page, image)| (*page, rgba_texture(device, queue, image, true)))
+            .map(|(page, image)| (*page, rgba_texture(device, queue, image, color_key)))
             .collect::<Vec<_>>();
         self.track = meshes
             .iter()
@@ -262,28 +267,33 @@ impl Scene {
             .collect();
     }
 
-    /// Chasis y ruedas del auto. `parts[0]` es el chasis y `parts[1..=4]` las ruedas;
-    /// cada parte va a su slot de matriz. Las caras con textura usan la `TPAGE`
-    /// del auto, sin color key (el negro no es transparente en autos).
-    pub fn upload_car(
+    /// Chasis y ruedas de cada auto. En cada auto, `parts[0]` es el chasis y
+    /// `parts[1..=4]` las ruedas; cada parte va a su slot de matriz. Las caras con
+    /// textura usan la del auto, sin color key (el negro no es transparente en autos).
+    pub fn upload_cars(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        parts: &[Vec<VisualMesh>],
-        texture: Option<&image::RgbaImage>,
+        cars: &[(&[Vec<VisualMesh>], Option<&image::RgbaImage>)],
     ) {
-        let view = texture.map(|image| rgba_texture(device, queue, image, false));
-        let mut car = Vec::new();
-        for (part, meshes) in parts.iter().enumerate().take(MODEL_SLOTS - 1) {
-            for mesh in meshes.iter().filter(|mesh| !mesh.indices.is_empty()) {
-                let texture = match (&view, mesh.texture_page >= 0) {
-                    (Some(view), true) => view,
-                    _ => &self.white,
-                };
-                car.push(self.static_mesh(device, queue, mesh, texture, Mat4::IDENTITY, part as u32 + 1));
+        let mut out = Vec::new();
+        for (index, (parts, texture)) in cars.iter().enumerate().take(MAX_CARS) {
+            let view = texture.map(|image| rgba_texture(device, queue, image, false));
+            for (part, meshes) in parts.iter().enumerate().take(5) {
+                let slot = 1 + index * 5 + part;
+                for mesh in meshes.iter().filter(|mesh| !mesh.indices.is_empty()) {
+                    let texture = match (&view, mesh.texture_page >= 0) {
+                        (Some(view), true) => view,
+                        _ => &self.white,
+                    };
+                    out.push(self.static_mesh(device, queue, mesh, texture, Mat4::IDENTITY, slot as u32));
+                }
             }
         }
-        self.car = car;
+        if cars.len() > MAX_CARS {
+            tracing::warn!(autos = cars.len(), "se dibujan los primeros {MAX_CARS} autos");
+        }
+        self.car = out;
     }
 
     pub fn upload_sky(
@@ -360,8 +370,9 @@ impl Scene {
         models: &[Mat4],
     ) {
         let Some(depth) = &self.depth else { return };
-        let mut model_bytes = vec![0u8; (MODEL_STRIDE as usize) * MODEL_SLOTS];
-        for slot in 0..MODEL_SLOTS {
+        let used = (1 + models.len()).min(MODEL_SLOTS);
+        let mut model_bytes = vec![0u8; (MODEL_STRIDE as usize) * used];
+        for slot in 0..used {
             let matrix = if slot == 0 {
                 Mat4::IDENTITY
             } else {

@@ -1,9 +1,9 @@
-//! `sfx.cpp` de Re-Volt PC (Miles Sound System) sobre Kira.
+//! Mezclador 3D del motor de sonido de Revvy, sobre Kira. Reproduce el comportamiento
+//! de `sfx.cpp` de Re-Volt PC (Miles Sound System), en metros.
 //!
-//! Un `SAMPLE_3D` tiene volumen 0–127, frecuencia en Hz y posición en el espacio de
-//! Re-Volt. Cada frame `MaintainAllSfx` lo atenúa por distancia a la cámara, lo panea
-//! por su X en pantalla y le aplica Doppler. Los que hacen loop se apagan fuera de
-//! rango y vuelven a sonar desde el principio al entrar.
+//! Un sonido 3D tiene volumen 0–127, frecuencia en Hz y posición. Cada frame se atenúa
+//! por distancia a la cámara, se panea por su X en pantalla y se le aplica Doppler. Los
+//! que hacen loop se apagan fuera de rango y vuelven a sonar desde el principio al entrar.
 
 use std::path::Path;
 
@@ -11,7 +11,6 @@ use glam::Vec3;
 use kira::sound::static_sound::{StaticSoundData, StaticSoundHandle};
 use kira::sound::PlaybackState;
 use kira::{AudioManager, AudioManagerSettings, Decibels, DefaultBackend, Panning, Tween};
-use revvy_physics::revolt::math::{mat_mul_vec, Mat};
 
 /// `SFX_MAX_VOL`.
 pub const SFX_MAX_VOL: i32 = 127;
@@ -21,19 +20,32 @@ const SFX_LEFT_PAN: f32 = 0.0;
 const SFX_CENTRE_PAN: f32 = 64.0;
 const SFX_RIGHT_PAN: f32 = 127.0;
 const SFX_3D_PAN_MUL: f32 = 64.0;
-const SFX_3D_MIN_DIST: f32 = 600.0;
+/// `SFX_3D_MIN_DIST`: 600 unidades de Re-Volt.
+const SFX_3D_MIN_DIST: f32 = 3.0;
+/// Hasta esta distancia el paneo se abre de a poco (100 unidades de Re-Volt).
+const SFX_3D_NEAR: f32 = 0.5;
 const SFX_3D_SUB_DIST: f32 = 8.0 / SFX_MAX_VOL as f32;
 const SFX_3D_SOS: f32 = 1024.0;
 /// `RenderSettings.GeomPers` (`BaseGeomPers`) y `REAL_SCREEN_XSIZE`.
 const GEOM_PERS: f32 = 512.0;
 const REAL_SCREEN_XSIZE: f32 = 640.0;
 
-/// La cámara que escucha, en el espacio de Re-Volt.
+/// La cámara que escucha.
 #[derive(Clone, Copy, Debug)]
 pub struct Listener {
     pub pos: Vec3,
-    pub mat: Mat,
+    pub forward: Vec3,
+    pub up: Vec3,
     pub vel: Vec3,
+}
+
+impl Listener {
+    /// El punto en el marco de la cámara: x a la derecha, y arriba, z adelante.
+    fn camera_space(&self, point: Vec3) -> Vec3 {
+        let rel = point - self.pos;
+        let right = self.forward.cross(self.up).normalize_or_zero();
+        Vec3::new(rel.dot(right), rel.dot(self.up), rel.dot(self.forward))
+    }
 }
 
 pub type SoundId = usize;
@@ -245,7 +257,7 @@ impl Mixer {
             let to_sample = sample.pos - listener.pos;
             let dist = to_sample.length();
             let doppler = if dist > 1e-5 {
-                rel.dot(to_sample / dist) * 0.005
+                rel.dot(to_sample / dist)
             } else {
                 0.0
             };
@@ -282,20 +294,20 @@ impl Mixer {
     }
 }
 
-/// `GetSfxSettings3D` (PC 1.2): volumen por distancia, paneo por la X en pantalla y
-/// Doppler por la velocidad relativa. Devuelve (vol, pan, freq) en unidades de Miles.
+/// Como `GetSfxSettings3D` (PC 1.2): volumen por distancia, paneo por la X en pantalla
+/// y Doppler por la velocidad relativa (m/s). Devuelve (vol, pan, freq) como Miles.
 pub fn settings_3d(vol: i32, freq: i32, pos: Vec3, vel: f32, range_mul: f32, listener: &Listener) -> (i32, i32, i32) {
     if range_mul == 0.0 {
         return (vol, SFX_CENTRE_PAN as i32, freq);
     }
-    let cam_space = mat_mul_vec(&listener.mat, pos - listener.pos);
+    let cam_space = listener.camera_space(pos);
     let len = cam_space.length();
 
     let f = ((SFX_3D_MIN_DIST * range_mul) / len - SFX_3D_SUB_DIST).clamp(0.0, 1.0);
     let per = ftol(f * 256.0);
     let vol = vol * per / 256;
 
-    let near = (len / 100.0).min(1.0);
+    let near = (len / SFX_3D_NEAR).min(1.0);
     let x = if cam_space.z.abs() > 1e-5 {
         cam_space.x * GEOM_PERS / cam_space.z.abs() * near
     } else if cam_space.x == 0.0 {
@@ -340,37 +352,38 @@ fn playback_rate(freq: i32, sample_rate: u32) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use revvy_physics::revolt::math::IDENTITY;
 
     fn listener() -> Listener {
         Listener {
             pos: Vec3::ZERO,
-            mat: IDENTITY,
+            forward: Vec3::Z,
+            up: Vec3::Y,
             vel: Vec3::ZERO,
         }
     }
 
     #[test]
     fn close_sounds_play_at_full_volume_and_far_ones_fade_out() {
-        let (vol, pan, freq) = settings_3d(127, 22050, Vec3::new(0.0, 0.0, 300.0), 0.0, 1.0, &listener());
+        let (vol, pan, freq) = settings_3d(127, 22050, Vec3::new(0.0, 0.0, 1.5), 0.0, 1.0, &listener());
         assert_eq!(vol, 127);
         assert_eq!(pan, 64);
         assert_eq!(freq, 22050);
-        let (vol, _, _) = settings_3d(127, 22050, Vec3::new(0.0, 0.0, 20000.0), 0.0, 1.0, &listener());
+        let (vol, _, _) = settings_3d(127, 22050, Vec3::new(0.0, 0.0, 100.0), 0.0, 1.0, &listener());
         assert_eq!(vol, 0);
-        let (vol, _, _) = settings_3d(127, 22050, Vec3::new(0.0, 0.0, 20000.0), 0.0, 0.0, &listener());
+        let (vol, _, _) = settings_3d(127, 22050, Vec3::new(0.0, 0.0, 100.0), 0.0, 0.0, &listener());
         assert_eq!(vol, 127, "rango 0 es ambiente global");
     }
 
     #[test]
     fn right_of_the_camera_pans_right() {
-        let (_, pan, _) = settings_3d(127, 22050, Vec3::new(500.0, 0.0, 500.0), 0.0, 1.0, &listener());
+        // +X es la izquierda de Revvy: a la derecha de la cámara es −X.
+        let (_, pan, _) = settings_3d(127, 22050, Vec3::new(-2.5, 0.0, 2.5), 0.0, 1.0, &listener());
         assert!(pan > 64, "pan {pan}");
     }
 
     #[test]
     fn approaching_sounds_go_up_in_pitch() {
-        let (_, _, freq) = settings_3d(127, 22050, Vec3::new(0.0, 0.0, 300.0), -300.0, 1.0, &listener());
+        let (_, _, freq) = settings_3d(127, 22050, Vec3::new(0.0, 0.0, 1.5), -30.0, 1.0, &listener());
         assert!(freq > 22050, "freq {freq}");
     }
 

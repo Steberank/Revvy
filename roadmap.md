@@ -4,7 +4,7 @@ Plan de implementación derivado de `revvy-arquitectura.md`. Cada bloque apunta 
 
 **Qué es Revvy:** un juego propio, retrocompatible con pistas y autos de Re-Volt. **No es un port** (§0). El contenido de Re-Volt pasa por una capa de traducción y corre en el motor de Revvy (render wgpu, física Rapier + vehículo propio, sonido Kira), el mismo que usan las pistas `.glb` y los autos propios. Carrera, reglas, poderes, bots y red se construyen sobre ese motor, nunca sobre estructuras de Re-Volt.
 
-**Fuera de v1** (queda documentado al final, no bloquea el resto): Rhai, visiboxes, cámaras de replay, decimate automático de colisión, descarga de autos custom, migración de host, S3/MinIO, varias instancias de game server.
+**Fuera de v1** (queda documentado al final, no bloquea el resto): Rhai, visiboxes, cámaras de replay, decimate automático de colisión, descarga de autos custom, migración de host, S3/MinIO, varias instancias de game server, modo reversed.
 
 **Árbitro:** quien decide rayitos, poderes, vueltas y respawn. Si `sim_authority: Server`, el servidor de juego. Si `Client`, el host. El dedicated server siempre existe para lobby, mapas y cierre de sala.
 
@@ -89,7 +89,7 @@ Adaptar a las structs de §7.4 (no exponer el binario crudo al resto del juego):
 
 - [x] `.taz` → `zones` (`taz.rs`)
 - [x] `.pan` → `pos_nodes` (`pan.rs`), links `-1` = sin conexión, cap histórico 4 no se impone en el tipo nuevo
-- [x] `.fan` → `ai_nodes` (`fan.rs`): verde izquierda, rojo derecha, racing line, overtaking
+- [x] `.fan` → `ai_nodes` (`fan.rs`): layout de `FILE_AINODE`, verde izquierda, rojo derecha, racing line, overtaking, paredes y `AIN_TYPE` → `AiFlags` / `speed_limit`
 - [x] `.fob` pickups → `pickups` (`fob.rs`); si hay tablas custom, `pickup_odds` / `PickupSpawn.odds` (lock de host)
 - [x] `.fld` → `force_fields` (`fld.rs`)
 - [x] `.fin` / start pos → `start_grid`
@@ -115,12 +115,12 @@ Implementar lo suficiente para no crashear al abrir un level stock; el gameplay 
 
 ## Fase 2 — Manejo en un mapa legacy (§1.2, §1.9, §1.10, §6.5)
 
-Objetivo: abrir una pista Re-Volt y manejar un auto encima como en el juego, con su sonido. `cargo run -p revvy-client -- nhood1 phim_calcure` carga nhood1 con el Calcure. Para llegar rápido a ese manejo, 2.5 y 2.6 portaron directo el motor de Re-Volt: corre en su espacio y lee datos sin traducir. Es un desvío provisorio de §0 y la referencia de 2.7, que lo reemplaza por el motor de Revvy.
+Objetivo: abrir una pista Re-Volt y manejar un auto encima como en el juego, con su sonido. `cargo run -p revvy-client -- nhood1 phim_calcure` carga nhood1 con el Calcure. Para llegar rápido a ese manejo, 2.5 y 2.6 portaron directo el motor de Re-Volt; 2.7 lo reemplazó por el motor de Revvy (Rapier + vehículo propio) y el port quedó como referencia en los tests.
 
 ### 2.1 Render (`client/src/render`)
 
 - [x] Pipeline opaco: posición, normal, UV, textura `.bmp`.
-- [x] Cámara libre con **C**: WASD según la mirada, mouse para girar, Q baja, E sube, Shift acelera. Las flechas siguen manejando. Por defecto va la de persecución (2.5).
+- [x] Cámara libre con **C**: WASD según la mirada, mouse para girar, Q baja, E sube, Shift acelera. Las flechas siguen manejando. Por defecto va la de persecución (2.7).
 - [x] Upload de `TrackAsset.visual` (`.w` y `.prm` de instancias). `Collision` no se dibuja.
 - [x] Luz = textura × gouraud del archivo. Sin sol ni hemisferio. `.lit` espera.
 - [x] Color key de mapa: texel RGB 0 no se dibuja; el resto de la cara sí. Un vértice negro no esconde la cara (techo del túnel).
@@ -131,7 +131,7 @@ Objetivo: abrir una pista Re-Volt y manejar un auto encima como en el juego, con
 - [x] `load_track(dir)` y `load_car(dir)` son la capa. `level` y `car` en `config/client.toml`, o los argumentos (`cargo run -p revvy-client -- nhood1 phim_calcure`). Un nombre se busca en `levels/` o `cars/`; una ruta se usa tal cual.
 - [x] Cada instancia del `.fin` carga su `.ncp` por nombre, incluidos los recortados a 8 letras. Sin lista de props.
 - [x] Escala: una unidad de Re-Volt mide 5 mm (`REVOLT_TO_METERS` = 0.005, un solo factor para `revvy-formats` y la física), según el velocímetro de `units.h`. A esa escala la gravedad de Re-Volt es 11 m/s² y su mph es el real. La cámara libre y los planos de recorte se ajustaron a la escala nueva.
-- [x] `TrackAsset.legacy` (`LegacyLevel`) trae los datos sin convertir para la física y el sonido: el `.ncp` con su grilla, el `.ncp` de cada instancia, los objetos del `.fob` y la largada del `.inf`. Provisorio, para el port: 2.7 lo saca del camino del motor.
+- [x] `TrackAsset.legacy` (`LegacyLevel`) trae los datos sin convertir para la física y el sonido: el `.ncp` con su grilla, el `.ncp` de cada instancia, los objetos del `.fob` y la largada del `.inf`. Hoy solo lo usa el port de referencia en los tests (2.7).
 
 ### 2.3 ECS (presente, el manejo todavía no lo usa)
 
@@ -149,9 +149,9 @@ El chasis y las ruedas salen de `parameters.txt` (`MODEL`, `TPAGE`) y se dibujan
 - [x] Las ruedas derechas copian la matriz de la izquierda de su eje, como el original.
 - [x] Una matriz de modelo por pieza (uniform con offset dinámico): la pista, el chasis y las cuatro ruedas.
 
-### 2.5 Manejo de referencia: port provisorio de Re-Volt (`crates/physics/src/revolt`, §1.9)
+### 2.5 Manejo de referencia: port de Re-Volt (`crates/physics/src/revolt`, §1.9)
 
-Desvío provisorio de §0, que sirve de referencia de manejo hasta que lo reemplace 2.7. Port de `rvsource/Xbox/Src`, ramas `_PC` y modo Simulación (con un solo auto, igual que Arcade): `newcoll.cpp`, `body.cpp`, `car.cpp`, `wheel.cpp`, `control.cpp`, `move.cpp` y `camera.cpp`. Corre en el espacio de Re-Volt (unidades de 5 mm, Y abajo) con las constantes tal cual; solo la cámara y el dibujo pasan a Revvy. Los números salen de `parameters.txt` encima de `CAR 0-28` en `CARINFO.TXT`; no se hardcodea el Calcure.
+Fue el motor de la fase 2 hasta 2.7; hoy es la referencia de manejo de los tests. Port de `rvsource/Xbox/Src`, ramas `_PC` y modo Simulación (con un solo auto, igual que Arcade): `newcoll.cpp`, `body.cpp`, `car.cpp`, `wheel.cpp`, `control.cpp`, `move.cpp` y `camera.cpp`. Corre en el espacio de Re-Volt (unidades de 5 mm, Y abajo) con las constantes tal cual; solo la cámara y el dibujo pasan a Revvy. Los números salen de `parameters.txt` encima de `CAR 0-28` en `CARINFO.TXT`; no se hardcodea el Calcure.
 
 - [x] Datos: `CarInfo` tipado (cuerpo, ruedas, resortes, motor) con las unidades del archivo, las esferas del `.hul` y las líneas `;)` de RVGL.
 - [x] Mundo: polígonos `NEWCOLLPOLY` del `.ncp` con la grilla del archivo. Las instancias del `.fin` entran con `RotTransPlane`, se reparten con 70 de margen y cada celda se ordena por altura (`InitCollGrid`).
@@ -172,7 +172,7 @@ Fuera del port por ahora, sin bloquear esta fase: marcas de derrape, chispas y p
 
 ### 2.6 Sonido (`client/src/audio`, §1.10)
 
-Kira es la salida. Encima corre el comportamiento de `sfx.cpp` de Re-Volt PC (rama `OLD_AUDIO`). Hoy trabaja en el espacio de Re-Volt con el estado del port; 2.7 lo pasa al de Revvy.
+Kira es la salida. Encima corre el comportamiento de `sfx.cpp` de Re-Volt PC (rama `OLD_AUDIO`). Desde 2.7 trabaja en metros, con el estado del vehículo de Revvy.
 
 - [x] Mezclador: cada sonido 3D tiene volumen 0–127, frecuencia en Hz y posición. Una vez por frame se recalculan la atenuación por distancia y rango, el paneo y el Doppler respecto de la cámara (`GetSfxSettings3D`). Los loops fuera de rango se cortan y vuelven a arrancar al entrar.
 - [x] `sfx_volume` en `config/client.toml`: 90, como `SFX_DEFAULT_VOL`. Sin dispositivo de audio, el juego corre mudo y el HUD lo avisa.
@@ -184,24 +184,25 @@ Kira es la salida. Encima corre el comportamiento de `sfx.cpp` de Re-Volt PC (ra
 
 ### 2.7 Motor de Revvy y capa de traducción (§0, §1.9, §1.10)
 
-Un manejo y un sonido lo más parecidos posible a los de 2.5–2.6, con el flujo correcto: contenido de Re-Volt → traducción → motor de Revvy. Al terminar, un auto de Re-Volt y uno propio corren juntos en el mismo motor, y lo mismo una pista de Re-Volt y una `.glb`.
+El manejo y el sonido de 2.5–2.6 con el flujo correcto: contenido de Re-Volt → traducción → motor de Revvy. Un auto de Re-Volt y uno propio corren juntos en el mismo motor, y lo mismo una pista de Re-Volt y una `.glb`.
 
-- [ ] Tipos del motor, en metros, Y arriba y SI: parámetros del vehículo, superficie con su perfil, emisores de sonido y largada. `revvy-formats` expone solo tipos de Revvy; `LegacyLevel` y `CarInfo` quedan adentro.
-- [ ] Superficies: `SurfaceType` crece hasta cubrir los 27 materiales de Re-Volt, con sus valores de `COL_MaterialInfo` (fricción, agarre, dureza, corrugado, velocidad de cinta). `from_revolt` pasa a ser uno a uno.
-- [ ] Traducción de pista: `.ncp` del mundo y de las instancias → `TriMesh` de Rapier con superficie por triángulo, y grupos de colisión para lo que es solo de cámara o solo de objetos. Parte de `TrackAsset.collision`, que ya está en Y arriba.
-- [ ] Traducción de auto: `parameters.txt` + `CARINFO.TXT` → parámetros del vehículo de Revvy, cada uno convertido según su dimensión, con 5 mm por unidad (§1.9). `TopSpeed` ya está en mph reales. Esferas del `.hul` → colliders contra el mundo; cascos convexos del `.hul` → colliders contra otros autos (hoy `hul.rs` se los saltea). Mallas y anclajes en metros. Tests por parámetro.
-- [ ] Física: `rapier3d` de vuelta en `revvy-physics`, con el vehículo de Revvy encima: sphere cast por rueda, suspensión, cono de fricción, motor con fade, volante, downforce y resistencias. Es código propio, no el raycast de Rapier. Gravedad 11 m/s², paso fijo.
-- [ ] Choques entre autos y contra props, de cualquier origen, resueltos por Rapier.
-- [ ] Modo de referencia Simulación: los autos chocan casco contra casco, rueda contra carrocería y rueda contra rueda. Sin las esferas de Arcade ni los cambios de Consola y Kids.
-- [ ] Cámara de persecución de Revvy, en metros, con queries de Rapier. Sus defaults salen de `CAM_FOLLOW_BEHIND`.
-- [ ] Enderezar (**R**) en el motor de Revvy, con el comportamiento de `MOV_RightCar`.
-- [ ] Sonido en el espacio de Revvy: el estado del vehículo alimenta motor, derrape, roce y golpes, y los objetos del `.fob` llegan como emisores traducidos.
-- [ ] Cliente sin tipos de Re-Volt: `DriveView` no importa `revvy_physics::revolt` ni convierte al dibujar.
-- [ ] Parecido con el port: tests con el Calcure en nhood1 que comparan los dos motores (0–35 mph, altura de asentamiento, radio de giro) con tolerancia, más prueba a mano. Idéntico no va a ser: paredes, aterrizajes y vuelcos se ajustan a mano.
-- [ ] Convivencia: el Calcure y un auto propio de prueba (parámetros de Revvy escritos a mano) en nhood1 al mismo tiempo. Una pista `.glb` de prueba cuando exista su loader (8.4).
-- [ ] Sacar el port del runtime. Decidir si queda como oráculo de tests o se borra.
+- [x] Tipos del motor, en metros, Y arriba y SI: `VehicleParams` (con `ChassisShape`), `CarSound`, `SurfaceType` con su perfil físico, `TrackSounds` (banco y emisores) y la grilla de largada. El cliente solo ve tipos de Revvy; `LegacyLevel` y `CarDef.revolt` los lee solo el port de referencia.
+- [x] Superficies: `SurfaceType` cubre los 27 materiales de Re-Volt en el orden de su índice (`from_revolt` uno a uno). `revvy-physics::surfaces` da su perfil con los valores de `COL_MaterialInfo` en metros.
+- [x] Traducción de pista: el `.ncp` del mundo y de las instancias → hasta tres `TriMesh` de Rapier (común, solo cámara, solo objetos) con la superficie de cada triángulo. El frente de cada triángulo sale de la normal de su polígono; en una instancia espejada se invierte el orden.
+- [x] Grilla de largada entera: los cuatro tipos de `CarGridStarts` (hasta 12 puestos). Corregido el yaw de `STARTROT`, que quedaba mirando para atrás: ahora mira hacia la zona 1, como el juego.
+- [x] Traducción de auto: `parameters.txt` + `CARINFO.TXT` → `VehicleParams`, cada valor convertido según su dimensión. `AxleFriction` se separa en dos (freno del eje y `spin_damping`), porque Re-Volt lo usa con dos dimensiones distintas. Las esferas del `.hul` van a la piel del chasis y sus cascos convexos (ahora se leen), a los choques entre autos.
+- [x] Física: `rapier3d` de vuelta en `revvy-physics` (`world.rs`), con el vehículo de Revvy encima (`vehicle_controller.rs`): ruedas esfera contra los triángulos cercanos, suspensión, cono de fricción, motor con fade, volante, downforce y resistencias. Paso fijo de 1/180 s, mandos a 60 Hz, gravedad 11 m/s² e interpolación para dibujar.
+- [x] Choques entre autos de cualquier origen, resueltos por Rapier como en el modo Simulación: casco contra casco, rueda contra carrocería y rueda contra rueda. Fricción y rebote del chasis contra la pista por superficie, con un hook; *contact clustering* apagado para que cada contacto sea de un triángulo.
+- [x] Cámara de persecución de Revvy (`camera.rs`), en metros, contra la pista con la misma prueba de esfera y un rayo para la vista.
+- [x] Enderezar (**R**) en el motor de Revvy: el chasis pasa a cinemático, sube y gira hasta quedar derecho. Funciona cada vez que el auto queda dado vuelta (`righting.rs`).
+- [x] Sonido en metros: un juego de sonidos por auto con su `VehicleSound`, y los emisores de `TrackSounds`.
+- [x] Cliente sin tipos de Re-Volt: `DriveView` usa `PhysicsWorld`, `ChaseCamera` y `VehicleSound`. Varios autos en la grilla (`car` + `extra_cars` en la config, o por argumentos) y **Tab** para cambiar el que se maneja. El render dibuja hasta 32 autos, los de una sala.
+- [x] Parecido con el port (`revvy_vs_port.rs`): asentamiento a 1 mm, aceleración a menos de 0,5 mph de 0 a 37 mph, giro a pocos grados. Donde más se separan es en los golpes contra paredes. Probado a mano.
+- [x] Contenido propio de prueba (`tools/test-content/generate.py`): el auto `revvy_buggy` (`car.toml` + `body.glb` + `collision.glb`) y la pista `revvy_arena` (`.glb` con asfalto, hielo, pasto, tierra, piedritas, rampas y muros). Adelanta partes de 8.4 y 8.5.
+- [x] Convivencia (`revvy_content.rs`): el Calcure y el buggy en nhood1 (el buggy empuja al Calcure), los dos en la arena `.glb`, y el hielo agarra menos que el asfalto.
+- [x] El port salió del runtime: el juego no lo usa. Queda como referencia de los tests; se puede borrar cuando ya no haga falta comparar.
 
-**Hecho cuando:** se recorre nhood1 (árboles sin rectángulo negro, cielo cerrado, túnel con techo, primera curva a la derecha); el Calcure se maneja como en Re-Volt, con su velocidad, agarre y suspensión, y ruedas que giran con la velocidad y doblan con el volante; y al acelerar, frenar y derrapar suena como en el juego, igual que los objetos de nhood1. **Cumplido con el port provisorio** (2.4–2.6): probado a mano en nhood1 con el Calcure. Falta lo mismo sobre el motor de Revvy (2.7), con un auto propio de prueba en la misma pista.
+**Hecho cuando:** se recorre nhood1 (árboles sin rectángulo negro, cielo cerrado, túnel con techo, primera curva a la derecha); el Calcure se maneja como en Re-Volt, con su velocidad, agarre y suspensión, y ruedas que giran con la velocidad y doblan con el volante; y al acelerar, frenar y derrapar suena como en el juego, igual que los objetos de nhood1. **Cumplido:** primero con el port (2.4–2.6) y después con el motor de Revvy (2.7), probado a mano en nhood1 y en la arena `.glb`, con el Calcure y el buggy propio en la misma pista.
 
 ---
 
@@ -224,7 +225,7 @@ Objetivo: la pista legacy ya adaptada a `TrackLayout` gobierna progreso y respaw
 
 ### 3.3 Respawn (§7.12)
 
-Destino: último `PosNode` válido de la `TrackZone` reciente, auto derecho, i-frames cortos.
+Destino: último `PosNode` válido de la `TrackZone` reciente, auto derecho, i-frames cortos. `PhysicsWorld::place_vehicle` ya pone un auto quieto en una pose (2.7).
 
 - [ ] Kill volume: sensor, al entrar respawn (en legacy, triggers de reposition de tipo kill).
 - [ ] Fuera de **todas** las TrackZones más de `off_track_secs` (~1.5 s) → respawn. Las zonas son el volumen jugable.
@@ -336,7 +337,7 @@ Vectores y radios en `powerups.default.ron` (magnitudes afinables). Uso = acció
 - [ ] Steering: pursuit + avoidance. Dificultad = datos (`difficulty.rs`), no otro binario.
 - [ ] Hasta 32 bots. `room` (aunque sea local) llena cupos vacíos.
 - [ ] Misma máquina de slot y uso de poderes que un humano.
-- [ ] Muchos autos a la vez en el motor de Revvy (2.7), con choques entre ellos.
+- [x] Muchos autos a la vez en el motor de Revvy, con choques entre ellos (2.7; el render dibuja hasta 32).
 - [ ] En esta fase los simula el proceso local. En red: host si `Client`, server si `Server` (fase 7).
 
 **Hecho cuando:** 8 bots completan vueltas en una pista con `.fan`, recogen rayitos y gastan al menos bombucha y aceite sin trabarse en un nodo sin link.
@@ -481,8 +482,8 @@ La reserva es solo de mapas, no de autos. **No existe en Android/iOS.**
 
 ### 8.4 glTF de pistas nuevas (§6.1–6.5, §6.7)
 
-- [ ] Crate `gltf` solo dentro de `gltf_track.rs`.
-- [ ] Escena obligatoria, nombres case-sensitive:
+- [x] Crate `gltf` solo en `revvy-formats` (`glb.rs`, que usan pistas y autos). (2.7)
+- [x] Escena obligatoria, nombres case-sensitive (2.7):
 
 ```
 Visual      # se dibuja
@@ -490,11 +491,11 @@ Collision   # no se dibuja; material = SurfaceType
 Props       # opcional
 ```
 
-- [ ] Falta `Collision` → rechazar la pista (no usar `Visual` como collider).
-- [ ] Unidades 1 m, Y-up. Origin ≠ largada.
+- [x] Falta `Collision` → rechazar la pista (no usar `Visual` como collider). (2.7)
+- [x] Unidades 1 m, Y-up. Origin ≠ largada: la grilla sale de `layout.ron`. (2.7)
 - [ ] Un solo `visual.glb` (no `collision.glb` aparte). `.gltf` sueltos se hornean a `.glb` en `map-packager`.
 - [ ] `extras.revvy.collider = trimesh | cuboid | convex`. Default trimesh. Cuboid = AABB / `half_extents`, sin TriMesh. Convex para props. TriMesh estático solo para piso manejable.
-- [ ] `Collision` entra al mismo motor que una pista traducida: colliders de Rapier con su `SurfaceType` (2.7).
+- [x] `Collision` entra al mismo motor que una pista traducida: colliders de Rapier con su `SurfaceType`. (2.7)
 - [ ] Atributos de Collision: solo `POSITION` (+ material). Ignorar UV/normales si vinieron; `map-packager` avisa.
 - [ ] Presupuesto en `map-packager`:
   - tris Collision / Visual: warn > 15 %, **error** ≥ 50 %
@@ -503,15 +504,15 @@ Props       # opcional
   - error si el `.zst` > 100 MB
 - [ ] Meshopt + `KHR_mesh_quantization` solo en `Visual`. Nunca cuantizar Collision.
 - [ ] `track.toml`: `id`, `name`, `author`, `laps` (metadata), `format = "revvy-glb-v1"`, `env`, más `preview.png`.
-- [ ] Server carga el glb pidiendo solo collision. Cliente pide visual + collision.
+- [x] Server carga el glb pidiendo solo collision (`TrackLoad::collision_only`). Cliente pide visual + collision. (2.7)
 - [ ] No ensamblar módulos de Blockbench en runtime: un glb por pista.
 - [ ] No leer custom properties salvo los nombres de nodo y `extras.revvy.collider`.
 - [ ] Checklists `dcc/blender/revvy_export.md` y `dcc/blockbench/revvy_export.md`: unidades, nodos, presupuesto, strip de UVs en Collision, “el piso no se decima a ciegas”.
 
 ### 8.5 Autos nuevos (§6.6) y packager
 
-- [ ] `cars/<id>/{car.toml, body.glb, collision.glb}`. Si falta collision, hull desde el body (peor, warning).
-- [ ] `car.toml` con los parámetros del vehículo de Revvy, el mismo tipo que sale de traducir un `parameters.txt` (2.7): manejo lo más parecido posible a Re-Volt, sin código de Re-Volt, sin `CARINFO.TXT` ni defaults de Re-Volt. Chasis desde `collision.glb`, escala de radiocontrol. Quitar el rechazo de `car.toml` en `load_car`.
+- [x] `cars/<id>/{car.toml, body.glb, collision.glb}`. Si falta collision, hull desde el body (peor, warning). (2.7)
+- [x] `car.toml` con los parámetros del vehículo de Revvy (`[vehicle]`), el mismo tipo que sale de traducir un `parameters.txt`: manejo lo más parecido posible a Re-Volt, sin código de Re-Volt, sin `CARINFO.TXT` ni defaults de Re-Volt. Chasis desde `collision.glb`, escala de radiocontrol. (2.7)
 - [ ] `car-packager` análogo, para el catálogo oficial.
 - [ ] `cars/_default/` hull usado por el server cuando el auto es custom en modo `Server`.
 - [ ] `asset-inspector`: abre legacy o `.glb` y muestra counts / errores de nombres.
@@ -627,6 +628,7 @@ No es código de engine; es el paquete con el que se prueba el roadmap entero.
 - [ ] Mapas en S3/MinIO.
 - [ ] Salto habilitado en algún modo (`allow_jump: true`) cuando el handling esté cerrado.
 - [ ] Ragdoll de props si hace falta, en el mismo Rapier del motor.
+- [ ] **Modo reversed**: cargar la subcarpeta `reversed/` de una pista legacy. Las pistas custom no son consistentes: en seis, el `.fan` es el de la pista normal con los links dados vuelta, y el verde queda a la derecha del sentido de carrera. La traducción tendría que normalizarlos (ver `docs/formats/fan.md`).
 
 ---
 

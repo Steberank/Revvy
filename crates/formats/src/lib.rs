@@ -1,4 +1,5 @@
-//! Parsers de pistas y autos legacy, y el `TrackAsset` que unifica con glTF.
+//! Contenido de Revvy: pistas y autos de Re-Volt (parsers + capa de traducción) y
+//! nuevos (`.glb`, `car.toml`). Afuera salen los mismos tipos de Revvy para los dos.
 
 use std::path::{Path, PathBuf};
 
@@ -10,12 +11,16 @@ mod fan;
 mod fin;
 mod fld;
 mod fob;
+mod glb;
 mod hul;
 mod inf;
 mod mesh;
 mod ncp;
 mod pan;
 mod prm;
+mod revolt_car;
+mod revolt_sounds;
+mod revvy_car;
 mod taz;
 mod vis;
 mod world;
@@ -25,16 +30,20 @@ pub mod layout;
 pub mod lit;
 pub mod por;
 pub mod pro;
+pub mod sounds;
+pub mod vehicle;
 
 pub use axes::REVOLT_TO_METERS;
 pub use bmp::load as load_bmp;
 pub use fin::Instance as LegacyInstance;
 pub use fob::{FobObject, SOUND_3D_TYPE, SPRINKLER_TYPE};
-pub use hul::{load as load_hull, load_native_spheres, HullSphere};
-pub use inf::{BodyInfo, CarInfo, CarStat, SpringInfo, WheelInfo};
-pub use layout::TrackLayout;
+pub use hul::{load as load_hull, load_native, load_native_spheres, HullSphere, NativeHull};
+pub use inf::{revolt_start_grid, BodyInfo, CarInfo, CarStat, SpringInfo, WheelInfo};
+pub use layout::{SurfaceType, TrackLayout};
 pub use mesh::VisualMesh;
-pub use ncp::{NcpFile, NcpGrid, NcpPoly};
+pub use ncp::{CollisionTri, NcpFile, NcpGrid, NcpPoly};
+pub use sounds::{EmitterKind, SoundBank, SoundEmitter, TrackSounds};
+pub use vehicle::{CarSound, ChassisShape, EngineSound, SpringParams, VehicleParams, WheelParams, WHEEL_COUNT};
 
 #[derive(Debug, thiserror::Error)]
 pub enum FormatError {
@@ -42,13 +51,8 @@ pub enum FormatError {
     Io(std::io::Error),
     #[error("{path}: {message}")]
     Parse { path: String, message: String },
-    #[error("formato glTF revvy-glb-v1 todavía no está implementado")]
-    GlbNotImplemented,
     #[error("la carpeta mezcla un .glb con un mundo .w")]
     MixedFormat,
-    /// Un auto propio de Revvy trae sus parámetros: nunca se completa con los de Re-Volt.
-    #[error("auto de Revvy (car.toml): todavía no está implementado")]
-    RevvyCarNotImplemented,
     #[error("falta {0}")]
     Missing(String),
 }
@@ -98,8 +102,9 @@ pub struct TrackAsset {
     pub visual: Option<Visual>,
     pub collision: Option<Collision>,
     pub layout: TrackLayout,
-    /// Datos del legado en el espacio de Re-Volt (sin girar ejes ni escalar).
-    /// Los consume la física portada de Re-Volt. `None` en pistas glTF.
+    pub sounds: TrackSounds,
+    /// Datos de Re-Volt sin traducir. Solo los usa el port de referencia en los tests;
+    /// el motor de Revvy nunca los lee. `None` en pistas glTF.
     pub legacy: Option<LegacyLevel>,
 }
 
@@ -124,6 +129,10 @@ pub struct LegacyLevel {
 pub struct Visual {
     pub meshes: Vec<VisualMesh>,
     pub textures: Vec<(i16, image::RgbaImage)>,
+    /// El negro puro de las texturas no se dibuja (páginas de pista de Re-Volt).
+    pub color_key: bool,
+    /// Cielo en el orden de un cubemap: +X, −X, +Y, −Y, +Z, −Z.
+    pub sky: Option<[image::RgbaImage; 6]>,
 }
 
 #[derive(Clone, Debug)]
@@ -152,30 +161,41 @@ impl Track for LoadedTrack {
     }
 }
 
+/// Un auto listo para el motor de Revvy, venga de Re-Volt o sea propio.
 #[derive(Clone, Debug)]
 pub struct CarDef {
     pub id: String,
     pub name: String,
     /// Carpeta del auto.
     pub dir: PathBuf,
+    /// Chasis, en el espacio del modelo: se dibuja en el centro de masa + `body_offset`.
     pub body: Vec<VisualMesh>,
-    /// Una lista de meshes por rueda (FL, FR, BL, BR), del `ModelNum` de cada `WHEEL`.
+    /// Una lista de meshes por rueda (FL, FR, BL, BR), centradas en el buje.
     pub wheels: [Vec<VisualMesh>; 4],
-    /// `TPAGE` del auto. Todas las caras con textura usan esta página.
+    /// Textura del auto. Todas las caras con textura usan esta página.
     pub texture: Option<image::RgbaImage>,
-    /// Esferas del `.hul` en espacio de Re-Volt: `[x, y, z, radio]`.
-    pub hull_spheres: Vec<[f32; 4]>,
+    pub vehicle: VehicleParams,
+    pub sound: CarSound,
+    /// Solo autos de Re-Volt: los datos crudos que usa el port de referencia en los tests.
+    pub revolt: Option<RevoltCar>,
+}
+
+/// `CAR_INFO` sin traducir. El motor de Revvy nunca lo lee.
+#[derive(Clone, Debug)]
+pub struct RevoltCar {
     pub info: CarInfo,
     pub params: inf::CarParams,
+    /// Esferas del `.hul` en espacio de Re-Volt: `[x, y, z, radio]`.
+    pub hull_spheres: Vec<[f32; 4]>,
 }
 
 impl CarDef {
     pub fn stat(&self, stat: inf::CarStat) -> Option<f32> {
-        self.params.stats.get(&stat).copied()
+        self.revolt.as_ref()?.params.stats.get(&stat).copied()
     }
 
     pub fn param(&self, key: &str) -> Option<&str> {
-        self.params.keys.get(key).map(String::as_str)
+        self.revolt.as_ref()?.params.keys.get(key).map(String::as_str)
     }
 }
 
@@ -195,7 +215,7 @@ pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatE
             std::fs::read_to_string(&toml_path).map_err(|err| FormatError::io(&toml_path, err))?;
         if let Ok(value) = toml::from_str::<toml::Value>(&text) {
             if value.get("format").and_then(|v| v.as_str()) == Some("revvy-glb-v1") {
-                return gltf_track::load(dir).map(|_| unreachable!());
+                return gltf_track::load(dir, options);
             }
         }
     }
@@ -229,6 +249,12 @@ pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatE
     let track_inf = inf::parse_track(&inf_path)?;
     layout.start_grid = track_inf.start_grid.clone();
 
+    let objects = match find_stem(dir, &stem, "fob") {
+        Some(path) => fob::parse_objects(&path)?,
+        None => Vec::new(),
+    };
+    let sounds = revolt_sounds::track_sounds(&id, &objects);
+
     let legacy = if options.collision {
         let world_ncp = ncp::parse_native(&ncp_path)?;
         let instances = match find_stem(dir, &stem, "fin") {
@@ -237,10 +263,6 @@ pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatE
                 let polys = fin::native_collision(dir, &instances)?;
                 instances.into_iter().zip(polys).collect()
             }
-            None => Vec::new(),
-        };
-        let objects = match find_stem(dir, &stem, "fob") {
-            Some(path) => fob::parse_objects(&path)?,
             None => Vec::new(),
         };
         Some(LegacyLevel {
@@ -307,6 +329,8 @@ pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatE
         Some(Visual {
             meshes,
             textures: bmp::load_pages(dir, &stem),
+            color_key: true,
+            sky: load_sky(dir),
         })
     } else {
         None
@@ -318,20 +342,37 @@ pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatE
             visual,
             collision,
             layout,
+            sounds,
             legacy,
         },
     })
+}
+
+/// `RenderSkybox` pega `sky_ft`, `sky_rt`, `sky_bk`, `sky_lt`, `sky_tp` y `sky_bt` en +Z,
+/// −X, −Z, +X, arriba y abajo del archivo. Con el giro de ejes, el cubemap queda
+/// +X `sky_rt`, −X `sky_lt`, +Y `sky_tp`, −Y `sky_bt`, +Z `sky_ft`, −Z `sky_bk`.
+fn load_sky(level: &Path) -> Option<[image::RgbaImage; 6]> {
+    let names = ["sky_rt", "sky_lt", "sky_tp", "sky_bt", "sky_ft", "sky_bk"];
+    let mut faces = Vec::with_capacity(6);
+    for name in names {
+        faces.push(bmp::load(&find_file(level, &format!("{name}.bmp"))?).ok()?);
+    }
+    let faces: [image::RgbaImage; 6] = faces.try_into().ok()?;
+    let (width, height) = (faces[0].width(), faces[0].height());
+    let square = width == height && faces.iter().all(|face| face.width() == width && face.height() == height);
+    square.then_some(faces)
 }
 
 pub fn parse_car_text(text: &str) -> inf::CarParams {
     inf::parse_car(text)
 }
 
-/// Auto de Re-Volt: `parameters.txt` (o `.inf`) encima de los defaults de `CARINFO.TXT`.
-/// Una carpeta con `car.toml` es un auto propio y no pasa por acá.
+/// Carga un auto. Con `car.toml` es un auto propio de Revvy y nunca usa datos de
+/// Re-Volt, aunque haya un `parameters.txt` al lado. Si no, es un auto de Re-Volt:
+/// `parameters.txt` (o `.inf`) encima de los defaults de `CARINFO.TXT`, traducido.
 pub fn load_car(dir: &Path) -> Result<CarDef, FormatError> {
-    if find_file(dir, "car.toml").is_some() {
-        return Err(FormatError::RevvyCarNotImplemented);
+    if let Some(toml_path) = find_file(dir, "car.toml") {
+        return revvy_car::load(dir, &toml_path);
     }
     let params_path = find_file(dir, "parameters.txt")
         .or_else(|| find_with_extension(dir, "inf"))
@@ -371,14 +412,14 @@ pub fn load_car(dir: &Path) -> Result<CarDef, FormatError> {
             }
         }
     });
-    let hull_spheres = match info.coll.as_deref().and_then(|coll| {
+    let hull = match info.coll.as_deref().and_then(|coll| {
         let file_name = Path::new(coll).file_name()?.to_string_lossy().into_owned();
         find_file(dir, &file_name)
     }) {
-        Some(path) => hul::load_native_spheres(&path)?,
+        Some(path) => hul::load_native(&path)?,
         None => {
             tracing::warn!("auto sin .hul: el cuerpo no choca con el mundo");
-            Vec::new()
+            NativeHull::default()
         }
     };
     let id = dir
@@ -393,9 +434,13 @@ pub fn load_car(dir: &Path) -> Result<CarDef, FormatError> {
         body,
         wheels,
         texture,
-        hull_spheres,
-        info,
-        params,
+        vehicle: revolt_car::vehicle_params(&info, &hull),
+        sound: revolt_car::car_sound(&info),
+        revolt: Some(RevoltCar {
+            info,
+            params,
+            hull_spheres: hull.spheres,
+        }),
     })
 }
 

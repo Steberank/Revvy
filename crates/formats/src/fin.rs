@@ -93,6 +93,11 @@ pub fn bake(level_dir: &Path, instances: &[Instance]) -> Result<Vec<VisualMesh>,
 }
 
 /// Colisión de cada instancia (`.ncp` junto al `.prm`), en el mismo sitio que el modelo.
+/// `INSTANCE_NO_OBJECT_COLLISION`: la instancia solo frena la cámara.
+const INSTANCE_NO_OBJECT_COLLISION: u8 = 32;
+/// `INSTANCE_NO_CAMERA_COLLISION`: la cámara la atraviesa.
+const INSTANCE_NO_CAMERA_COLLISION: u8 = 64;
+
 pub fn bake_collision(
     level_dir: &Path,
     instances: &[Instance],
@@ -127,13 +132,23 @@ pub fn bake_collision(
             .find(|(name, _)| name == &instance.name)
             .expect("el ncp se acaba de cachear")
             .1;
+        // `RotTransPlane` gira la normal sin espejarla: en una instancia espejada el orden
+        // de los vértices se invierte para que el frente siga del mismo lado.
+        let m = instance.matrix;
+        let det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
         for tri in local {
-            let positions = tri
+            let mut positions = tri
                 .positions
                 .map(|point| place_instance(instance.matrix, instance.position, point));
+            if det < 0.0 {
+                positions.swap(1, 2);
+            }
             triangles.push(CollisionTri {
                 positions,
                 surface: tri.surface,
+                camera_only: tri.camera_only || instance.flag & INSTANCE_NO_OBJECT_COLLISION != 0,
+                object_only: tri.object_only || instance.flag & INSTANCE_NO_CAMERA_COLLISION != 0,
             });
         }
     }

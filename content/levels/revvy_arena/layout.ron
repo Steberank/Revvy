@@ -1,0 +1,10 @@
+// Grilla de largada de la arena de prueba. El resto del layout llega con el editor.
+TrackLayout(
+    version: 1,
+    start_grid: [
+        (pos: (x: 0.00, y: 0.3, z: -40.00), yaw: 0.0),
+        (pos: (x: -1.30, y: 0.3, z: -40.20), yaw: 0.0),
+        (pos: (x: 0.00, y: 0.3, z: -41.50), yaw: 0.0),
+        (pos: (x: -1.30, y: 0.3, z: -41.70), yaw: 0.0),
+    ],
+)

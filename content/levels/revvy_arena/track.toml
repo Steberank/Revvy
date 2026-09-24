@@ -1,0 +1,5 @@
+id = "revvy_arena"
+name = "Revvy Arena"
+author = "Revvy"
+laps = 3
+format = "revvy-glb-v1"

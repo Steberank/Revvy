@@ -1,4 +1,4 @@
-//! UI inmediata: ayuda de teclas y velocímetro del visor.
+//! UI inmediata: ayuda de teclas y velocímetro.
 
 pub mod hud;
 pub mod room;
@@ -8,6 +8,10 @@ pub mod room;
 pub struct HudInfo {
     /// Velocidad del auto en mph (`OGU2MPH_SPEED`), como el velocímetro de Re-Volt.
     pub speed_mph: f32,
+    /// El auto que se maneja.
+    pub car_name: String,
+    /// Autos en la pista.
+    pub cars: usize,
     pub free_camera: bool,
     /// `false` si no hay dispositivo de audio: el juego corre en silencio.
     pub sound: bool,
@@ -24,6 +28,9 @@ pub fn show_drive(ctx: &egui::Context, hud: &HudInfo) {
             } else {
                 ui.label("C cámara libre");
             }
+            if hud.cars > 1 {
+                ui.label("Tab cambiar de auto");
+            }
             if !hud.sound {
                 ui.label("sin dispositivo de audio");
             }
@@ -32,6 +39,7 @@ pub fn show_drive(ctx: &egui::Context, hud: &HudInfo) {
         .title_bar(false)
         .anchor(egui::Align2::RIGHT_BOTTOM, [-16.0, -16.0])
         .show(ctx, |ui| {
+            ui.label(&hud.car_name);
             ui.heading(format!("{:>3.0} mph", hud.speed_mph));
         });
 }

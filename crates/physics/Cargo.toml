@@ -6,5 +6,6 @@ publish.workspace = true
 
 [dependencies]
 glam.workspace = true
+rapier3d = "0.35"
 revvy-formats = { path = "../formats" }
 tracing.workspace = true

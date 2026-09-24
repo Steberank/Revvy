@@ -68,11 +68,17 @@ impl ApplicationHandler for App {
                                 &queue,
                                 map.track_meshes(),
                                 map.track_textures(),
+                                map.color_key(),
                             );
                             if let Some(sky) = map.sky() {
                                 scene.upload_sky(&device, &queue, sky);
                             }
-                            scene.upload_car(&device, &queue, map.car_parts(), map.car_texture());
+                            let cars: Vec<_> = map
+                                .cars()
+                                .iter()
+                                .map(|car| (car.parts.as_slice(), car.texture.as_ref()))
+                                .collect();
+                            scene.upload_cars(&device, &queue, &cars);
                         }
                         self.map = Some(map);
                         self.gpu = Some(gpu);
@@ -126,11 +132,10 @@ impl ApplicationHandler for App {
                 }
                 self.input.end_frame();
                 let camera = self.map.as_ref().map(|map| map.camera());
-                let models = self.map.as_ref().map(|map| map.car_models());
+                let models = self.map.as_ref().map(|map| map.car_models()).unwrap_or_default();
                 let hud = self.map.as_ref().map(|map| map.hud()).unwrap_or_default();
                 if let Some(gpu) = self.gpu.as_mut() {
-                    let models: &[glam::Mat4] = models.as_ref().map_or(&[], |m| m.as_slice());
-                    if let Err(err) = gpu.render(&window, camera.as_ref(), models, &hud) {
+                    if let Err(err) = gpu.render(&window, camera.as_ref(), &models, &hud) {
                         tracing::error!(%err, "falló el frame");
                         event_loop.exit();
                     }

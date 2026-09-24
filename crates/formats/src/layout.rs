@@ -2,29 +2,143 @@
 
 use glam::{Quat, Vec3};
 
-/// Material de contacto. Un id de Re-Volt desconocido cae en `Road`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Superficie de contacto. Cubre los 27 materiales de Re-Volt (`COL_MaterialInfo`), en el
+/// mismo orden que su índice; los siete de siempre (`Road`, `Dirt`, `Ice`, `Grass`,
+/// `Metal`, `Wood`, `Sand`) son `DEFAULT`, `DIRT1`, `ICE1`, `GRASS`, `METAL`, `WOOD` y `SAND`.
+/// En una pista `.glb`, el nombre del material de `Collision` es el nombre de la variante.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SurfaceType {
+    /// `DEFAULT`.
     Road,
-    Dirt,
-    Ice,
-    Grass,
-    Metal,
+    /// `MARBLE`.
+    Marble,
+    /// `STONE`.
+    Stone,
+    /// `WOOD`.
     Wood,
+    /// `SAND`.
     Sand,
+    /// `PLASTIC`.
+    Plastic,
+    /// `CARPET1`.
+    CarpetTile,
+    /// `CARPET2`.
+    CarpetShag,
+    /// `BOUNDARY`.
+    Boundary,
+    /// `GLASS`.
+    Glass,
+    /// `ICE1`.
+    Ice,
+    /// `METAL`.
+    Metal,
+    /// `GRASS`.
+    Grass,
+    /// `BUMPMETAL`.
+    BumpMetal,
+    /// `PEBBLES`.
+    Pebbles,
+    /// `GRAVEL`.
+    Gravel,
+    /// `CONVEYOR1`.
+    Conveyor1,
+    /// `CONVEYOR2`.
+    Conveyor2,
+    /// `DIRT1`.
+    Dirt,
+    /// `DIRT2`.
+    Dirt2,
+    /// `DIRT3`.
+    Dirt3,
+    /// `ICE2`.
+    Ice2,
+    /// `ICE3`.
+    Ice3,
+    /// `WOOD2`.
+    Wood2,
+    /// `CONVEYOR_MARKET1`.
+    ConveyorMarket1,
+    /// `CONVEYOR_MARKET2`.
+    ConveyorMarket2,
+    /// `PAVING`.
+    Paving,
 }
 
 impl SurfaceType {
+    pub const ALL: [SurfaceType; 27] = [
+        Self::Road,
+        Self::Marble,
+        Self::Stone,
+        Self::Wood,
+        Self::Sand,
+        Self::Plastic,
+        Self::CarpetTile,
+        Self::CarpetShag,
+        Self::Boundary,
+        Self::Glass,
+        Self::Ice,
+        Self::Metal,
+        Self::Grass,
+        Self::BumpMetal,
+        Self::Pebbles,
+        Self::Gravel,
+        Self::Conveyor1,
+        Self::Conveyor2,
+        Self::Dirt,
+        Self::Dirt2,
+        Self::Dirt3,
+        Self::Ice2,
+        Self::Ice3,
+        Self::Wood2,
+        Self::ConveyorMarket1,
+        Self::ConveyorMarket2,
+        Self::Paving,
+    ];
+
+    /// Material de un polígono del `.ncp`. Uno fuera de tabla cae en `Road`, como en el juego.
     pub fn from_revolt(material: u32) -> Self {
-        match material {
-            3 | 23 => Self::Wood,
-            4 => Self::Sand,
-            10 | 21 | 22 => Self::Ice,
-            11 | 13 => Self::Metal,
-            12 => Self::Grass,
-            14 | 15 | 18 | 19 | 20 => Self::Dirt,
-            _ => Self::Road,
+        Self::ALL.get(material as usize).copied().unwrap_or(Self::Road)
+    }
+
+    pub fn index(self) -> usize {
+        self as usize
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Road => "Road",
+            Self::Marble => "Marble",
+            Self::Stone => "Stone",
+            Self::Wood => "Wood",
+            Self::Sand => "Sand",
+            Self::Plastic => "Plastic",
+            Self::CarpetTile => "CarpetTile",
+            Self::CarpetShag => "CarpetShag",
+            Self::Boundary => "Boundary",
+            Self::Glass => "Glass",
+            Self::Ice => "Ice",
+            Self::Metal => "Metal",
+            Self::Grass => "Grass",
+            Self::BumpMetal => "BumpMetal",
+            Self::Pebbles => "Pebbles",
+            Self::Gravel => "Gravel",
+            Self::Conveyor1 => "Conveyor1",
+            Self::Conveyor2 => "Conveyor2",
+            Self::Dirt => "Dirt",
+            Self::Dirt2 => "Dirt2",
+            Self::Dirt3 => "Dirt3",
+            Self::Ice2 => "Ice2",
+            Self::Ice3 => "Ice3",
+            Self::Wood2 => "Wood2",
+            Self::ConveyorMarket1 => "ConveyorMarket1",
+            Self::ConveyorMarket2 => "ConveyorMarket2",
+            Self::Paving => "Paving",
         }
+    }
+
+    /// Nombre de material de una pista `.glb`. Distingue mayúsculas, como los nodos.
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|surface| surface.name() == name)
     }
 }
 

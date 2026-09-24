@@ -11,6 +11,9 @@ use glam::{Mat3, Quat, Vec3};
 /// por unidad/s. Así la gravedad de Re-Volt (2200) es 11 m/s².
 pub const REVOLT_TO_METERS: f32 = 0.005;
 
+/// `MPH2OGU_SPEED`: unidades de Re-Volt por segundo en una milla por hora.
+pub const MPH2OGU_SPEED: f32 = 1.0 / 0.01118;
+
 pub fn position(revolt: [f32; 3]) -> Vec3 {
     Vec3::new(
         -revolt[0] * REVOLT_TO_METERS,
@@ -46,10 +49,11 @@ pub fn rotation(rows: [[f32; 3]; 3]) -> Quat {
     Quat::from_mat3(&mat).normalize()
 }
 
+/// Yaw de Revvy para la matriz `RotMatrixY(-turns)` con la que Re-Volt ubica un auto.
+/// Con el giro de ejes el ángulo queda igual, así que el yaw es `-turns · τ`: en nhood1
+/// (`STARTROT` 0.25) el auto mira hacia −X, hacia la zona 1 de la pista.
 pub fn yaw_from_turns(turns: f32) -> f32 {
-    // `RotationY` gira alrededor de Y, que en el archivo apunta hacia abajo.
-    // Con el giro de ejes, el mismo sentido positivo mira la pista.
-    turns * std::f32::consts::TAU
+    -turns * std::f32::consts::TAU
 }
 
 #[cfg(test)]

@@ -50,25 +50,40 @@ pub fn load(path: &Path) -> Result<Vec<HullSphere>, FormatError> {
     Ok(spheres)
 }
 
-/// Esfera del `.hul` en espacio del modelo de Re-Volt (sin convertir): `[x, y, z, radio]`.
-pub fn load_native_spheres(path: &Path) -> Result<Vec<[f32; 4]>, FormatError> {
+/// El `.hul` tal cual, en espacio del modelo de Re-Volt (sin convertir).
+#[derive(Clone, Debug, Default)]
+pub struct NativeHull {
+    /// Vértices de cada casco convexo. Con ellos chocan dos autos en modo Simulación.
+    pub hulls: Vec<Vec<[f32; 3]>>,
+    /// Esferas `[x, y, z, radio]`. Con ellas el cuerpo toca el mundo.
+    pub spheres: Vec<[f32; 4]>,
+}
+
+/// `LoadConvex` + `LoadSpheres`.
+pub fn load_native(path: &Path) -> Result<NativeHull, FormatError> {
     let file = File::open(path).map_err(|err| FormatError::io(path, err))?;
     let mut reader = Reader::new(BufReader::new(file));
-    let hulls = reader.i16()?;
-    if hulls < 0 {
+    let count = reader.i16()?;
+    if count < 0 {
         return Err(FormatError::parse(path, "cantidad de cascos negativa"));
     }
-    for _ in 0..hulls {
+    let mut hulls = Vec::with_capacity(count as usize);
+    for _ in 0..count {
         let vertices = reader.i16()?;
         let edges = reader.i16()?;
         let faces = reader.i16()?;
         if vertices < 0 || edges < 0 || faces < 0 {
             return Err(FormatError::parse(path, "casco con conteos negativos"));
         }
+        // Caja del casco y su desplazamiento: se recalculan de los vértices.
         reader.skip(24 + 12)?;
-        reader.skip(vertices as usize * 12)?;
+        let mut points = Vec::with_capacity(vertices as usize);
+        for _ in 0..vertices {
+            points.push(reader.v3()?);
+        }
         reader.skip(edges as usize * 4)?;
         reader.skip(faces as usize * 16)?;
+        hulls.push(points);
     }
     let count = reader.i16()?;
     if count < 0 {
@@ -80,5 +95,10 @@ pub fn load_native_spheres(path: &Path) -> Result<Vec<[f32; 4]>, FormatError> {
         let radius = reader.f32()?;
         spheres.push([x, y, z, radius]);
     }
-    Ok(spheres)
+    Ok(NativeHull { hulls, spheres })
+}
+
+/// Esfera del `.hul` en espacio del modelo de Re-Volt (sin convertir): `[x, y, z, radio]`.
+pub fn load_native_spheres(path: &Path) -> Result<Vec<[f32; 4]>, FormatError> {
+    Ok(load_native(path)?.spheres)
 }

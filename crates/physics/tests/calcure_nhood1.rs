@@ -1,4 +1,4 @@
-//! El Calcure en nhood1 con la física portada de Re-Volt.
+//! El Calcure en nhood1 con el port de referencia de Re-Volt.
 
 use std::path::PathBuf;
 
@@ -16,7 +16,8 @@ fn simulation() -> Simulation {
     let legacy = track.asset.legacy.expect("datos nativos del nivel");
     let car_def = load_car(&content("cars/phim_calcure")).expect("calcure");
     let start = Car::start_grid(legacy.start_pos, legacy.start_rot, legacy.start_grid_type);
-    let car = Car::new(&car_def.info, &car_def.hull_spheres);
+    let revolt = car_def.revolt.as_ref().expect("auto de Re-Volt");
+    let car = Car::new(&revolt.info, &revolt.hull_spheres);
     Simulation::new(CollWorld::new(&legacy), car, start)
 }
 

@@ -12,11 +12,19 @@ use crate::layout::SurfaceType;
 use crate::FormatError;
 
 const NCP_QUAD: u32 = 1;
+/// `OBJECT_ONLY` y `CAMERA_ONLY` del tipo de polígono.
+const NCP_OBJECT_ONLY: u32 = 4;
+const NCP_CAMERA_ONLY: u32 = 8;
 
 #[derive(Clone, Debug)]
 pub struct CollisionTri {
+    /// Antihorario visto desde el frente: el lado de donde se choca.
     pub positions: [Vec3; 3],
     pub surface: SurfaceType,
+    /// Solo frena la cámara: los autos lo atraviesan.
+    pub camera_only: bool,
+    /// Solo lo tocan los autos: la cámara lo atraviesa.
+    pub object_only: bool,
 }
 
 pub fn parse(path: &Path) -> Result<Vec<CollisionTri>, FormatError> {
@@ -31,6 +39,7 @@ pub fn parse(path: &Path) -> Result<Vec<CollisionTri>, FormatError> {
         let kind = reader.u32()?;
         let material = reader.u32()?;
         let surface = SurfaceType::from_revolt(material);
+        let flags = (kind & NCP_CAMERA_ONLY != 0, kind & NCP_OBJECT_ONLY != 0);
         let mut normals = [Vec3::ZERO; 5];
         let mut distances = [0.0; 5];
         for plane in 0..5 {
@@ -134,10 +143,10 @@ pub fn parse(path: &Path) -> Result<Vec<CollisionTri>, FormatError> {
             continue;
         }
         if quad {
-            push_tri(&mut triangles, corners[0], corners[3], corners[2], surface);
-            push_tri(&mut triangles, corners[0], corners[2], corners[1], surface);
+            push_tri(&mut triangles, [corners[0], corners[3], corners[2]], normals[0], surface, flags);
+            push_tri(&mut triangles, [corners[0], corners[2], corners[1]], normals[0], surface, flags);
         } else {
-            push_tri(&mut triangles, corners[0], corners[2], corners[1], surface);
+            push_tri(&mut triangles, [corners[0], corners[2], corners[1]], normals[0], surface, flags);
         }
     }
     Ok(triangles)
@@ -249,13 +258,21 @@ fn parse_grid(path: &Path, reader: &mut Reader<&[u8]>, polys: usize) -> Result<N
     })
 }
 
-fn push_tri(out: &mut Vec<CollisionTri>, a: Vec3, b: Vec3, c: Vec3, surface: SurfaceType) {
+/// El frente del triángulo es el lado del plano del polígono: el orden de los vértices
+/// queda antihorario visto desde ahí, como en una `.glb`.
+fn push_tri(out: &mut Vec<CollisionTri>, [a, b, mut c]: [Vec3; 3], front: Vec3, surface: SurfaceType, flags: (bool, bool)) {
     if !a.is_finite() || !b.is_finite() || !c.is_finite() {
         return;
+    }
+    let mut b = b;
+    if (b - a).cross(c - a).dot(front) < 0.0 {
+        std::mem::swap(&mut b, &mut c);
     }
     out.push(CollisionTri {
         positions: [a, b, c],
         surface,
+        camera_only: flags.0,
+        object_only: flags.1,
     });
 }
 

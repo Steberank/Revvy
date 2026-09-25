@@ -42,6 +42,8 @@ pub struct TrackInf {
     /// `FOGCOLOR`: el color de la niebla y del fondo. Si falta, negro, como en
     /// `LevelInfo.cpp`.
     pub fog_color: [u8; 3],
+    /// `MODELRGBPER`: porcentaje del color de vértice de los modelos de objetos. Si falta, 100.
+    pub model_rgb_per: u32,
 }
 
 pub fn parse_track(path: &Path) -> Result<TrackInf, FormatError> {
@@ -82,6 +84,10 @@ pub fn parse_track(path: &Path) -> Result<TrackInf, FormatError> {
         .map(|value| numbers(value))
         .filter(|nums| nums.len() >= 3)
         .map_or([0; 3], |nums| [0, 1, 2].map(|i| nums[i].clamp(0.0, 255.0) as u8));
+    let model_rgb_per = keys
+        .get("modelrgbper")
+        .and_then(|value| numbers(value).first().copied())
+        .map_or(100, |per| per.max(0.0) as u32);
     Ok(TrackInf {
         name,
         keys,
@@ -90,6 +96,7 @@ pub fn parse_track(path: &Path) -> Result<TrackInf, FormatError> {
         start_rot,
         start_grid_type,
         fog_color,
+        model_rgb_per,
     })
 }
 

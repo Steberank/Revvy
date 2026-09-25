@@ -1,0 +1,94 @@
+# Carrito de la arena: un auto sin conductor que vive en la carpeta de la pista. Nadie lo
+# maneja: se mueve cuando lo empujan y se endereza solo si se vuelca.
+name = "Carrito"
+body = "body.glb"
+collision = "collision.glb"
+
+[vehicle]
+mass = 2.0
+inertia = [[0.06, 0.0, 0.0], [0.0, 0.061, 0.0], [0.0, 0.0, 0.037]]
+gravity = 11.0
+hardness = 0.0
+resistance = 0.001
+angular_resistance = 0.001
+angular_resistance_air = 25.0
+grip = 0.01
+static_friction = 0.8
+kinetic_friction = 0.4
+body_offset = [0.0, 0.0, 0.0]
+steer_rate = 3.0
+engine_rate = 4.5
+top_speed = 10.0
+down_force = 2.0
+
+[[vehicle.wheels]]
+present = true
+powered = false
+steered = false
+offset = [0.14, 0.0, 0.18]
+radius = 0.04
+mass = 0.12
+gravity = 11.0
+max_travel = 0.025
+skid_width = 0.05
+steer_ratio = 0.0
+engine_ratio = 0.0
+axle_friction = 0.00005
+grip = 2.0
+static_friction = 1.9
+kinetic_friction = 1.7
+spring = { stiffness = 550.0, damping = 7.0, restitution = -0.7 }
+
+[[vehicle.wheels]]
+present = true
+powered = false
+steered = false
+offset = [-0.14, 0.0, 0.18]
+radius = 0.04
+mass = 0.12
+gravity = 11.0
+max_travel = 0.025
+skid_width = 0.05
+steer_ratio = 0.0
+engine_ratio = 0.0
+axle_friction = 0.00005
+grip = 2.0
+static_friction = 1.9
+kinetic_friction = 1.7
+spring = { stiffness = 550.0, damping = 7.0, restitution = -0.7 }
+
+[[vehicle.wheels]]
+present = true
+powered = false
+steered = false
+offset = [0.14, 0.0, -0.18]
+radius = 0.04
+mass = 0.12
+gravity = 11.0
+max_travel = 0.025
+skid_width = 0.05
+steer_ratio = 0.0
+engine_ratio = 0.0
+axle_friction = 0.00005
+grip = 2.0
+static_friction = 1.9
+kinetic_friction = 1.7
+spring = { stiffness = 550.0, damping = 7.0, restitution = -0.7 }
+
+[[vehicle.wheels]]
+present = true
+powered = false
+steered = false
+offset = [-0.14, 0.0, -0.18]
+radius = 0.04
+mass = 0.12
+gravity = 11.0
+max_travel = 0.025
+skid_width = 0.05
+steer_ratio = 0.0
+engine_ratio = 0.0
+axle_friction = 0.00005
+grip = 2.0
+static_friction = 1.9
+kinetic_friction = 1.7
+spring = { stiffness = 550.0, damping = 7.0, restitution = -0.7 }

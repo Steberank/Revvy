@@ -19,15 +19,19 @@ mod ncp;
 mod pan;
 mod prm;
 mod revolt_car;
+mod revolt_objects;
 mod revolt_sounds;
 mod revvy_car;
+mod revvy_objects;
 mod taz;
+mod tri;
 mod vis;
 mod world;
 
 pub mod gltf_track;
 pub mod layout;
 pub mod lit;
+pub mod objects;
 pub mod por;
 pub mod pro;
 pub mod sounds;
@@ -42,6 +46,10 @@ pub use inf::{revolt_start_grid, BodyInfo, CarInfo, CarStat, SpringInfo, WheelIn
 pub use layout::{SurfaceType, TrackLayout};
 pub use mesh::VisualMesh;
 pub use ncp::{CollisionTri, NcpFile, NcpGrid, NcpPoly};
+pub use objects::{
+    CarSpawn, ImpactSound, MotionCue, MotionSounds, ObjectKind, ObjectMotion, ObjectShape,
+    ObjectSpawn, SpawnTrigger, SpawnWhen, TrackObjects,
+};
 pub use sounds::{EmitterKind, SoundBank, SoundEmitter, TrackSounds};
 pub use vehicle::{CarSound, ChassisShape, EngineSound, SpringParams, VehicleParams, WheelParams, WHEEL_COUNT};
 
@@ -111,6 +119,9 @@ pub struct TrackAsset {
     pub collision: Option<Collision>,
     pub layout: TrackLayout,
     pub sounds: TrackSounds,
+    /// Objetos que se mueven y chocan: pelotas, conos, botellas… Viven en el motor, así que
+    /// sin colisión (`TrackLoad::visual_only`, el fondo del menú) no se cargan.
+    pub objects: TrackObjects,
     /// Datos de Re-Volt sin traducir. Solo los usa el port de referencia en los tests;
     /// el motor de Revvy nunca los lee. `None` en pistas glTF.
     pub legacy: Option<LegacyLevel>,
@@ -281,6 +292,24 @@ pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatE
         None => Vec::new(),
     };
     let sounds = revolt_sounds::track_sounds(&id, &objects);
+    let triggers = match find_stem(dir, &stem, "tri") {
+        Some(path) => tri::parse(&path)?,
+        None => Vec::new(),
+    };
+    layout.kill_volumes = triggers
+        .iter()
+        .filter(|trigger| trigger.kind == tri::TRIGGER_REPOSITION)
+        .map(|trigger| layout::KillVolume {
+            center: trigger.center,
+            rotation: trigger.rotation,
+            half_extents: trigger.half_extents,
+        })
+        .collect();
+    let track_objects = if options.collision {
+        revolt_objects::translate(dir, &track_inf, &objects, &triggers)
+    } else {
+        TrackObjects::default()
+    };
 
     let legacy = if options.collision {
         let world_ncp = ncp::parse_native(&ncp_path)?;
@@ -322,9 +351,6 @@ pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatE
     }
     if let Some(path) = find_stem(dir, &stem, "fld") {
         layout.force_fields = fld::parse(&path)?;
-    }
-    if let Some(path) = find_stem(dir, &stem, "tri") {
-        layout.kill_volumes = parse_kill_triggers(&path)?;
     }
 
     // Se leen para no abortar. El gameplay de v1 no los usa.
@@ -371,6 +397,7 @@ pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatE
             collision,
             layout,
             sounds,
+            objects: track_objects,
             legacy,
         },
     })
@@ -430,8 +457,7 @@ pub fn load_car(dir: &Path) -> Result<CarDef, FormatError> {
         }
     }
     let texture = info.tpage.as_deref().and_then(|tpage| {
-        let file_name = Path::new(tpage).file_name()?.to_string_lossy().into_owned();
-        let path = find_file(dir, &file_name)?;
+        let path = find_file(dir, revolt_file_name(tpage))?;
         match bmp::load(&path) {
             Ok(image) => Some(image),
             Err(err) => {
@@ -440,10 +466,11 @@ pub fn load_car(dir: &Path) -> Result<CarDef, FormatError> {
             }
         }
     });
-    let hull = match info.coll.as_deref().and_then(|coll| {
-        let file_name = Path::new(coll).file_name()?.to_string_lossy().into_owned();
-        find_file(dir, &file_name)
-    }) {
+    let hull = match info
+        .coll
+        .as_deref()
+        .and_then(|coll| find_file(dir, revolt_file_name(coll)))
+    {
         Some(path) => hul::load_native(&path)?,
         None => {
             tracing::warn!("auto sin .hul: el cuerpo no choca con el mundo");
@@ -473,44 +500,18 @@ pub fn load_car(dir: &Path) -> Result<CarDef, FormatError> {
 }
 
 fn load_named_mesh(dir: &Path, model: &str) -> Result<Vec<VisualMesh>, FormatError> {
-    let file_name = Path::new(model)
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy();
-    let Some(path) = find_file(dir, &file_name) else {
+    let file_name = revolt_file_name(model);
+    let Some(path) = find_file(dir, file_name) else {
         tracing::warn!(model, "modelo de auto ausente");
         return Ok(Vec::new());
     };
-    Prm::parse(&path)?.to_meshes(&file_name)
+    Prm::parse(&path)?.to_meshes(file_name)
 }
 
-fn parse_kill_triggers(path: &Path) -> Result<Vec<layout::KillVolume>, FormatError> {
-    let file = std::fs::File::open(path).map_err(|err| FormatError::io(path, err))?;
-    let mut reader = binutil::Reader::new(std::io::BufReader::new(file));
-    let count = reader.i32()?;
-    if count < 0 {
-        return Err(FormatError::parse(path, "cantidad de triggers negativa"));
-    }
-    let mut volumes = Vec::new();
-    for _ in 0..count {
-        let kind = reader.i32()?;
-        let _flag = reader.i32()?;
-        let center = axes::position(reader.v3()?);
-        let mut rows = [[0.0; 3]; 3];
-        for row in &mut rows {
-            *row = reader.v3()?;
-        }
-        let half_extents = axes::position(reader.v3()?).abs();
-        // En nhood1 el tipo 2 es el reposition que devuelve el auto a la pista.
-        if kind == 2 {
-            volumes.push(layout::KillVolume {
-                center,
-                rotation: axes::rotation(rows),
-                half_extents,
-            });
-        }
-    }
-    Ok(volumes)
+/// El archivo de una ruta de `parameters.txt`. Las de Re-Volt usan `\`
+/// (`cars\trolley\TrollBod.m`), que en Linux no separa carpetas.
+fn revolt_file_name(path: &str) -> &str {
+    path.rsplit(['\\', '/']).next().unwrap_or(path)
 }
 
 pub(crate) fn find_file(dir: &Path, name: &str) -> Option<PathBuf> {

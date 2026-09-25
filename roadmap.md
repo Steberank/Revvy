@@ -93,7 +93,7 @@ Adaptar a las structs de §7.4 (no exponer el binario crudo al resto del juego):
 - [x] `.fob` pickups → `pickups` (`fob.rs`); si hay tablas custom, `pickup_odds` / `PickupSpawn.odds` (lock de host)
 - [x] `.fld` → `force_fields` (`fld.rs`)
 - [x] `.fin` / start pos → `start_grid`
-- [x] Triggers de reposition → `kill_volumes` cuando el tipo es kill
+- [x] Triggers `.tri` de reposition (tipo 8, `TriggerRepositionCar`) → `kill_volumes` (`tri.rs`). Hasta 2.8 se tomaba el tipo 2, que son las flechas de dirección.
 - [x] Superficies del `.ncp` → `SurfaceType` en el collider
 
 ### 1.4 Parsers que se leen pero no gobiernan v1
@@ -143,7 +143,7 @@ Objetivo: abrir una pista Re-Volt y manejar un auto encima como en el juego, con
 El chasis y las ruedas salen de `parameters.txt` (`MODEL`, `TPAGE`) y se dibujan como `DrawCar`, en la pose que deja la física de 2.5.
 
 - [x] Chasis en `Pos + BodyOffset`, con la matriz del cuerpo.
-- [x] Una malla por rueda, según el `ModelNum` de su `WHEEL`. La `TPAGE` va sin color key.
+- [x] Una malla por rueda, según el `ModelNum` de su `WHEEL`. La `TPAGE` usa el color key negro, como toda textura de Re-Volt (desde 2.8; antes iba sin él).
 - [x] Cada rueda en `WPos`: su `Offset1` más el recorrido de suspensión sobre el eje up del auto, recortado a `MaxPos`. No se despega del buje.
 - [x] Matriz de rueda `RotX(AngPos) · RotY(TurnAngle) · W`. En las ruedas `IsTurnable`, `TurnAngle` es el volante × `SteerRatio`. `AngPos` integra la velocidad angular de la física: la rueda gira con la velocidad y también patina o se traba.
 - [x] Las ruedas derechas copian la matriz de la izquierda de su eje, como el original.
@@ -179,7 +179,7 @@ Kira es la salida. Encima corre el comportamiento de `sfx.cpp` de Re-Volt PC (ra
 - [x] Motor según `Revs`: el `SFXENGINE` del auto (clave de RVGL) o el de su clase. El Calcure es eléctrico y no trae uno propio: suena `wavs/moto.wav`.
 - [x] Acelerar sube el volumen y el tono del motor. Frenar fuerte y derrapar suenan con `skid_normal` o `skid_rough`, según el material. Roce: `scrape.wav`. Volante: servo. Golpe (`BangMag` > 500): `hit2.wav`.
 - [x] Nivel: nhood1 usa el banco `wavs/hood/` (`SfxLevel`). Suenan los `3DSOUND` del `.fob`, en loop o cada 10–30 s, y los regadores.
-- [ ] `basketball.wav` y `roadcone.wav`: esperan a que la pelota y los conos del nivel sean objetos físicos.
+- [x] `basketball.wav` y `roadcone.wav`: suenan cuando chocan la pelota o un cono del nivel (2.8).
 - [ ] Música y bocina. Los sonidos de armas van con la fase 5.
 
 ### 2.7 Motor de Revvy y capa de traducción (§0, §1.9, §1.10)
@@ -202,7 +202,29 @@ El manejo y el sonido de 2.5–2.6 con el flujo correcto: contenido de Re-Volt �
 - [x] Convivencia (`revvy_content.rs`): el Calcure y el buggy en nhood1 (el buggy empuja al Calcure), los dos en la arena `.glb`, y el hielo agarra menos que el asfalto.
 - [x] El port salió del runtime: el juego no lo usa. Queda como referencia de los tests; se puede borrar cuando ya no haga falta comparar.
 
-**Hecho cuando:** se recorre nhood1 (árboles sin rectángulo negro, cielo cerrado, túnel con techo, primera curva a la derecha); el Calcure se maneja como en Re-Volt, con su velocidad, agarre y suspensión, y ruedas que giran con la velocidad y doblan con el volante; y al acelerar, frenar y derrapar suena como en el juego, igual que los objetos de nhood1. **Cumplido:** primero con el port (2.4–2.6) y después con el motor de Revvy (2.7), probado a mano en nhood1 y en la arena `.glb`, con el Calcure y el buggy propio en la misma pista.
+### 2.8 Objetos de pista (`revvy-formats::objects`, `revvy-physics::objects`, §1.9, §1.10, §6.4)
+
+Los objetos sueltos de una pista (pelotas, conos, botellas, cajas…) son cuerpos del motor de Revvy, con el mismo flujo que el resto: contenido de Re-Volt → traducción → tipos de Revvy (`TrackObjects`) → Rapier. Una pista propia los declara en su carpeta, sin datos de Re-Volt.
+
+- [x] Tipos del motor: `ObjectKind` (mallas y texturas, forma, masa, inercia, fricción, rebote, amortiguamiento, si arranca dormido y sonido de golpe) y `ObjectSpawn` (pose, velocidad inicial y cuándo aparece: al empezar o cuando un auto entra en una caja, una vez o cada tantos segundos).
+- [x] Traducción de Re-Volt (`revolt_objects.rs`): pelota de playa, pelota de fútbol, pelota de básquet, botella, balde, cono, caja y cubo ABC, con la física de su `Init*` (`obj_init.cpp`) convertida a SI. Modelo `models/<nombre>.m` con las páginas de textura del nivel (la pelota de playa usa `fxpage1`) y el color escalado por `MODELRGBPER` del `.inf`. Forma: esfera o los cascos del `.hul`.
+- [x] Lanzadores (`OBJECT_THROWER`): el trigger `.tri` de tipo 6 con su id tira el objeto una vez por carrera cuando entra un auto, a `Speed × 50` unidades/s por el eje del lanzador. En nhood1 son las dos pelotas de básquet.
+- [x] Dormidos: las cajas, los baldes, los cubos y las botellas con `flags[0]` quedan quietos hasta que algo los toque (`COL_WaitForCollision`). Los estantes de market1 no se caen solos.
+- [x] Motor (`objects.rs`): cuerpo dinámico con CCD que choca con la pista, los autos (cascos y ruedas) y los otros objetos. Contra la pista, la fricción y el rebote se multiplican por la rugosidad y la dureza del piso, y en las paredes resbala más y rebota un poco más; entre cuerpos, se multiplican los dos (`body.cpp`). Un objeto casi quieto durante 0,2 s se duerme, como con `MOV_MoveBodyClever`.
+- [x] Solver sin warmstart: con warmstart, un casco apoyado en una cara plana (la base del cono de la arena) se bamboleaba cada vez más hasta volcar y atravesar el piso. Los tests de manejo y de paridad con el port siguen pasando.
+- [x] Sonido de golpe (`AI_BangNoiseHandler`): cada tipo con su wav, su umbral y su offset de volumen; el volumen crece con el cambio de velocidad del golpe. `hood/basketball.wav`, `hood/roadcone.wav`, `bottle.wav` y `market/carton.wav`.
+- [x] Pista propia: `objects/<nombre>/object.toml` + `model.glb` + sonido, y las apariciones en `layout.ron` (§6.4). La arena de prueba trae tres conos y una pelota con trigger que se rearma a los 8 s.
+- [x] Render: cada tipo sube sus mallas una vez y cada objeto se dibuja con su matriz, interpolada entre pasos. Hasta 128 objetos a la vez.
+- [x] Tests: los conos de nhood1 quedan parados (uno está en una pendiente de 8,6°), el Calcure voltea un cono y suena, las pelotas de nhood1 rebotan y se frenan, las botellas de market1 esperan a que algo las toque y los objetos de la arena salen de su carpeta. Las puertas de market2 siguen su camino y suenan a tiempo, las de la arena empujan un cono dormido y al Calcure, el chango dado vuelta se endereza y el Calcure lo empuja.
+- [x] `toy/toybrick.wav`, el golpe del cubo ABC, ya está en `content/wavs/toy/`.
+- [x] Chango (`InitTrolley`): es el auto `cars/trolley` sin conductor. Nadie lo maneja, Tab no lo elige, no suena y se endereza solo cuando la Y de su eje vertical baja de 0,5 (`TrolleyAIHandler`), con el mismo enderezado que la **R**. A diferencia de Re-Volt, también aparece en multijugador. Está en market1 y market2.
+- [x] Puertas corredizas de market2 (`InitSlider`): cada hoja va y viene 2 m por su eje en 3 s (`AI_SliderHandler`), para su lado. Son cinemáticas: nada las frena, empujan autos y objetos (y despiertan a los dormidos) y no chocan con la pista. Suenan `market/sdrsopen.wav` al salir y `market/sdrsclos.wav` al volver, en su punto de partida.
+- [x] En una pista propia, un objeto puede tener camino (`motion: Slide(offset, period)` en `layout.ron`, con sonidos `start` y `turn` en `object.toml`), y un auto sin conductor va en `objects/<nombre>/car.toml`, dentro de la carpeta de la pista. La arena trae una puerta de dos hojas y un carrito.
+- [x] Color key en autos y objetos: el negro puro de sus texturas no se dibuja, sean de Re-Volt o propios (el espacio entre las barras del chango). Re-Volt se lo pone a todas sus texturas (`LoadTextureClever`).
+- [x] `load_car` lee las rutas de Windows de `parameters.txt` (`cars\trolley\TrollBod.m`). Antes, 176 de los 472 autos de `REVOLT/cars` cargaban sin malla, textura ni casco; el Calcure andaba porque su archivo usa `/`.
+- Quedan afuera, porque no están sus modelos: la lata, la colchoneta, las estrellas, las luces y los regadores como objetos físicos. El log avisa qué tipos del `.fob` no se traducen.
+
+**Hecho cuando:** se recorre nhood1 (árboles sin rectángulo negro, cielo cerrado, túnel con techo, primera curva a la derecha); el Calcure se maneja como en Re-Volt, con su velocidad, agarre y suspensión, y ruedas que giran con la velocidad y doblan con el volante; y al acelerar, frenar y derrapar suena como en el juego, igual que los objetos de nhood1. **Cumplido:** primero con el port (2.4–2.6) y después con el motor de Revvy (2.7), probado a mano en nhood1 y en la arena `.glb`, con el Calcure y el buggy propio en la misma pista. Los conos y las pelotas de nhood1 llegaron en 2.8, con sus golpes.
 
 ---
 
@@ -227,7 +249,7 @@ Objetivo: la pista legacy ya adaptada a `TrackLayout` gobierna progreso y respaw
 
 Destino: último `PosNode` válido de la `TrackZone` reciente, auto derecho, i-frames cortos. `PhysicsWorld::place_vehicle` ya pone un auto quieto en una pose (2.7).
 
-- [ ] Kill volume: sensor, al entrar respawn (en legacy, triggers de reposition de tipo kill).
+- [ ] Kill volume: sensor, al entrar respawn (en legacy, los triggers `.tri` de tipo 8, `TriggerRepositionCar`).
 - [ ] Fuera de **todas** las TrackZones más de `off_track_secs` (~1.5 s) → respawn. Las zonas son el volumen jugable.
 - [ ] Fuera del AABB mundo (`Collision` + margen) → respawn inmediato.
 - [ ] Keybind / botón manual.

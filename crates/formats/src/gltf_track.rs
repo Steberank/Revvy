@@ -11,6 +11,8 @@ use serde::Deserialize;
 
 use crate::glb::{self, GlbNode};
 use crate::layout::{StartSlot, TrackLayout};
+use crate::objects::TrackObjects;
+use crate::revvy_objects;
 use crate::sounds::TrackSounds;
 use crate::{find_file, Collision, FormatError, LoadedTrack, TrackAsset, TrackLoad, Visual};
 
@@ -61,8 +63,13 @@ pub fn load(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatError> 
         triangles: glb::collision_triangles(&collision_nodes),
     });
 
+    let layout_file = read_layout(dir);
     let mut layout = TrackLayout::default();
-    layout.start_grid = start_grid(dir);
+    layout.start_grid = start_grid(layout_file.as_ref());
+    let objects = match &layout_file {
+        Some(file) if options.collision => revvy_objects::load(dir, &file.objects),
+        _ => TrackObjects::default(),
+    };
     tracing::info!(
         pista = manifest.name.as_deref().unwrap_or(&id),
         largada = layout.start_grid.len(),
@@ -76,16 +83,20 @@ pub fn load(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatError> 
             layout,
             legacy: None,
             sounds: TrackSounds::default(),
+            objects,
         },
     })
 }
 
-/// La grilla de `layout.ron`. El resto del layout lo lee el editor (fase 9).
+/// Lo que se lee de `layout.ron`: la grilla y los objetos. El resto llega con el editor
+/// (fase 9).
 #[derive(Deserialize)]
 #[serde(rename = "TrackLayout")]
 struct LayoutFile {
     #[serde(default)]
     start_grid: Vec<SlotFile>,
+    #[serde(default)]
+    objects: Vec<revvy_objects::Placement>,
 }
 
 #[derive(Deserialize)]
@@ -94,43 +105,57 @@ struct SlotFile {
     yaw: f32,
 }
 
-#[derive(Deserialize)]
-struct V3 {
+#[derive(Deserialize, Default)]
+pub(crate) struct V3 {
     x: f32,
     y: f32,
     z: f32,
 }
 
-fn start_grid(dir: &Path) -> Vec<StartSlot> {
-    let fallback = || {
-        vec![StartSlot {
-            pos: Vec3::new(0.0, 0.5, 0.0),
-            yaw: 0.0,
-        }]
-    };
+impl V3 {
+    pub(crate) fn vec(&self) -> Vec3 {
+        Vec3::new(self.x, self.y, self.z)
+    }
+}
+
+fn read_layout(dir: &Path) -> Option<LayoutFile> {
     let Some(path) = find_file(dir, "layout.ron") else {
         tracing::warn!("pista sin layout.ron: se larga en el origen");
-        return fallback();
+        return None;
     };
     let parsed = std::fs::read_to_string(&path)
         .map_err(|err| err.to_string())
         .and_then(|text| ron::from_str::<LayoutFile>(&text).map_err(|err| err.to_string()));
     match parsed {
-        Ok(layout) if !layout.start_grid.is_empty() => layout
-            .start_grid
-            .into_iter()
-            .map(|slot| StartSlot {
-                pos: Vec3::new(slot.pos.x, slot.pos.y, slot.pos.z),
-                yaw: slot.yaw,
-            })
-            .collect(),
-        Ok(_) => {
-            tracing::warn!("layout.ron sin start_grid: se larga en el origen");
-            fallback()
-        }
+        Ok(layout) => Some(layout),
         Err(err) => {
-            tracing::warn!(%err, "layout.ron ilegible: se larga en el origen");
-            fallback()
+            tracing::warn!(%err, "layout.ron ilegible: se larga en el origen y sin objetos");
+            None
         }
     }
+}
+
+fn start_grid(layout: Option<&LayoutFile>) -> Vec<StartSlot> {
+    let slots: Vec<StartSlot> = layout
+        .map(|layout| {
+            layout
+                .start_grid
+                .iter()
+                .map(|slot| StartSlot {
+                    pos: slot.pos.vec(),
+                    yaw: slot.yaw,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if slots.is_empty() {
+        if layout.is_some() {
+            tracing::warn!("layout.ron sin start_grid: se larga en el origen");
+        }
+        return vec![StartSlot {
+            pos: Vec3::new(0.0, 0.5, 0.0),
+            yaw: 0.0,
+        }];
+    }
+    slots
 }

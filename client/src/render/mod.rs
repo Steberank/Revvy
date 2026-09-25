@@ -12,7 +12,7 @@ mod scene;
 #[cfg(target_os = "linux")]
 mod vulkan_icd;
 
-pub use scene::{CameraView, Scene};
+pub use scene::{CameraView, ObjectMeshes, Scene, MAX_OBJECTS};
 
 pub struct Gpu {
     surface: wgpu::Surface<'static>,
@@ -139,12 +139,14 @@ impl Gpu {
         }
     }
 
-    /// Un frame: la escena desde `camera` (o solo el clear) y encima la UI de `ui`.
+    /// Un frame: la escena desde `camera` (o solo el clear), con los autos (`models`) y los
+    /// objetos (tipo y matriz), y encima la UI de `ui`.
     pub fn render(
         &mut self,
         window: &Window,
         camera: Option<&CameraView>,
         models: &[glam::Mat4],
+        objects: &[(usize, glam::Mat4)],
         ui: impl FnMut(&mut egui::Ui),
     ) -> anyhow::Result<()> {
         let frame = match self.surface.get_current_texture() {
@@ -200,7 +202,16 @@ impl Gpu {
                 .create_view(&wgpu::TextureViewDescriptor::default());
             let aspect = self.config.width as f32 / self.config.height.max(1) as f32;
             if let (Some(scene), Some(camera)) = (self.scene.as_ref(), camera) {
-                scene.draw(&self.queue, &mut encoder, &view, self.clear, aspect, camera, models);
+                scene.draw(
+                    &self.queue,
+                    &mut encoder,
+                    &view,
+                    self.clear,
+                    aspect,
+                    camera,
+                    models,
+                    objects,
+                );
             } else {
                 let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("revvy-clear"),

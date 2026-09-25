@@ -1,0 +1,14 @@
+# Cono de prueba de la arena: un objeto propio, sin datos de Re-Volt.
+# SI, relativo al origen del modelo, que es el centro de masa (un cuarto de la altura).
+name = "Cono"
+mass = 1.2
+friction = 0.4
+restitution = 0.0
+linear_damping = 0.9
+angular_damping = 0.1
+shape = { type = "hull" }
+
+[sound]
+impact = "golpe.wav"
+min_speed = 1.5
+volume_offset = -15.0

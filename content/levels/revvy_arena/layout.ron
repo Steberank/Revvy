@@ -1,4 +1,4 @@
-// Grilla de largada de la arena de prueba. El resto del layout llega con el editor.
+// Largada y objetos de la arena de prueba. El resto del layout llega con el editor.
 TrackLayout(
     version: 1,
     start_grid: [
@@ -6,5 +6,15 @@ TrackLayout(
         (pos: (x: -1.30, y: 0.3, z: -40.20), yaw: 0.0),
         (pos: (x: 0.00, y: 0.3, z: -41.50), yaw: 0.0),
         (pos: (x: -1.30, y: 0.3, z: -41.70), yaw: 0.0),
+    ],
+    objects: [
+        (object: "cono", pos: (x: 1.5, y: 0.1, z: -32.0)),
+        (object: "cono", pos: (x: -1.5, y: 0.1, z: -28.0)),
+        (object: "cono", pos: (x: 1.5, y: 0.1, z: -24.0)),
+        (object: "pelota", pos: (x: 8.0, y: 1.5, z: -14.0), velocity: (x: -7.0, y: 3.0, z: 0.0),
+         spawn: Trigger(center: (x: 0.0, y: 1.0, z: -20.0), half_extents: (x: 6.0, y: 2.0, z: 1.0), rearm: Some(8.0))),
+        (object: "puerta", pos: (x: -1.0, y: 0.6, z: -8.0), motion: Slide(offset: (x: -2.2, y: 0.0, z: 0.0), period: 4.0)),
+        (object: "puerta", pos: (x: 1.0, y: 0.6, z: -8.0), motion: Slide(offset: (x: 2.2, y: 0.0, z: 0.0), period: 4.0)),
+        (object: "carrito", pos: (x: 3.5, y: 0.3, z: -10.0), yaw: 1.57),
     ],
 )

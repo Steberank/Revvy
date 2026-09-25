@@ -65,4 +65,26 @@ TrackLayout(
             half_extents: (x: 200.0, y: 5.0, z: 200.0),
         ),
     ],
+    // Cada objeto es una carpeta de `objects/` de la pista: object.toml + model.glb, o un
+    // auto sin conductor con car.toml.
+    objects: [
+        (object: "cono", pos: (x: 2.0, y: 0.1, z: 30.0), yaw: 0.0),
+        (
+            object: "pelota",
+            pos: (x: 8.0, y: 1.5, z: 40.0),
+            velocity: (x: -7.0, y: 3.0, z: 0.0),
+            spawn: Trigger(
+                center: (x: 0.0, y: 1.0, z: 34.0),
+                half_extents: (x: 6.0, y: 2.0, z: 1.0),
+                yaw: 0.0,
+                rearm: Some(8.0),
+            ),
+        ),
+        (
+            object: "puerta",
+            pos: (x: -1.0, y: 0.6, z: 50.0),
+            motion: Slide(offset: (x: -2.2, y: 0.0, z: 0.0), period: 4.0),
+        ),
+        (object: "carrito", pos: (x: 3.5, y: 0.3, z: 45.0), yaw: 1.57),
+    ],
 )

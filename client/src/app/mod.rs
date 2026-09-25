@@ -17,7 +17,7 @@ use crate::config::ClientConfig;
 use crate::drive::{cli_race, DriveView, Race};
 use crate::input::Input;
 use crate::menu::MenuView;
-use crate::render::Gpu;
+use crate::render::{Gpu, ObjectMeshes};
 use crate::ui::menu::MenuAction;
 
 pub fn run(config: ClientConfig) -> anyhow::Result<()> {
@@ -160,7 +160,12 @@ impl App {
                 sky: drive.sky(),
                 background: drive.background(),
             };
-            upload_scene(gpu, &track, &cars);
+            let objects: Vec<_> = drive
+                .object_kinds()
+                .iter()
+                .map(|kind| (kind.meshes.as_slice(), kind.textures.as_slice()))
+                .collect();
+            upload_scene(gpu, &track, &cars, &objects);
         }
         self.race = Some(drive);
         Ok(())
@@ -181,7 +186,7 @@ impl App {
                 sky: menu.sky(),
                 background: menu.background(),
             };
-            upload_scene(gpu, &track, &[]);
+            upload_scene(gpu, &track, &[], &[]);
         }
         Ok(())
     }
@@ -214,8 +219,9 @@ impl App {
         self.input.end_frame();
         let camera = race.camera();
         let models = race.car_models();
+        let objects = race.object_models();
         let hud = race.hud();
-        if let Err(err) = gpu.render(window, Some(&camera), &models, |ui| {
+        if let Err(err) = gpu.render(window, Some(&camera), &models, &objects, |ui| {
             crate::ui::show_drive(ui.ctx(), &hud)
         }) {
             tracing::error!(%err, "falló el frame");
@@ -246,7 +252,7 @@ impl App {
         self.input.end_frame();
         let camera = menu.camera();
         let mut action = None;
-        let frame = gpu.render(window, Some(&camera), &[], |ui| {
+        let frame = gpu.render(window, Some(&camera), &[], &[], |ui| {
             if let Some(done) = crate::ui::menu::show(ui, &mut menu.state) {
                 action.get_or_insert(done);
             }
@@ -280,11 +286,13 @@ struct TrackScene<'a> {
     background: Option<[u8; 3]>,
 }
 
-/// Cambia lo que dibuja la escena: la pista, su cielo y los autos (ninguno en el menú).
+/// Cambia lo que dibuja la escena: la pista, su cielo, los autos y los tipos de objeto
+/// (en el menú, ni autos ni objetos).
 fn upload_scene(
     gpu: &mut Gpu,
     track: &TrackScene,
     cars: &[(&[Vec<VisualMesh>], Option<&image::RgbaImage>)],
+    objects: &[ObjectMeshes],
 ) {
     let device = gpu.device().clone();
     let queue = gpu.queue().clone();
@@ -301,5 +309,6 @@ fn upload_scene(
             None => scene.clear_sky(&device, &queue, track.background),
         }
         scene.upload_cars(&device, &queue, cars);
+        scene.upload_objects(&device, &queue, objects);
     }
 }

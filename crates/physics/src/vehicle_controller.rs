@@ -19,8 +19,8 @@ use revvy_formats::{SurfaceType, VehicleParams, WHEEL_COUNT};
 
 use crate::surfaces;
 use crate::world::{
-    track_sphere_hits, SphereHit, TrackMesh, Viewer, GROUP_CAR_HULL, GROUP_CAR_SKIN, GROUP_OBJECT_ONLY, GROUP_WORLD,
-    TAG_CAR,
+    track_sphere_hits, SphereHit, TrackMesh, Viewer, GROUP_CAR_HULL, GROUP_CAR_SKIN, GROUP_OBJECT,
+    GROUP_OBJECT_ONLY, GROUP_WORLD, TAG_CAR,
 };
 
 /// `FRICTION_TIME_SCALE`: las fricciones de Re-Volt están pensadas por 1/120 s.
@@ -198,6 +198,8 @@ pub struct Vehicle {
     engine_volt: f32,
     revs: f32,
     righting: Option<Righting>,
+    /// Sin conductor: se endereza solo cuando la Y de su eje vertical baja de esto.
+    pub(crate) self_righting: Option<f32>,
     reset_pressed: bool,
     last_reset: bool,
     no_contact_time: f32,
@@ -251,9 +253,12 @@ impl Vehicle {
         }
         // Los cascos chocan con otros autos. Sin esferas, también tocan el mundo.
         let (member, filter) = if params.chassis.spheres.is_empty() {
-            (GROUP_CAR_HULL | GROUP_CAR_SKIN, GROUP_CAR_HULL | world)
+            (
+                GROUP_CAR_HULL | GROUP_CAR_SKIN,
+                GROUP_CAR_HULL | GROUP_OBJECT | world,
+            )
         } else {
-            (GROUP_CAR_HULL, GROUP_CAR_HULL)
+            (GROUP_CAR_HULL, GROUP_CAR_HULL | GROUP_OBJECT)
         };
         for hull in &params.chassis.hulls {
             let points: Vec<Vec3> = hull.iter().map(|&p| Vec3::from(p)).collect();
@@ -331,7 +336,11 @@ impl Vehicle {
                     .position(Pose::from_translation(w.centre_offset))
                     .density(0.0)
                     .friction(params.kinetic_friction)
-                    .collision_groups(InteractionGroups::new(GROUP_CAR_HULL, GROUP_CAR_HULL, InteractionTestMode::And))
+                    .collision_groups(InteractionGroups::new(
+                        GROUP_CAR_HULL,
+                        GROUP_CAR_HULL | GROUP_OBJECT,
+                        InteractionTestMode::And,
+                    ))
                     .user_data(tag)
                     .build();
                 colliders.insert_with_parent(collider, body, bodies)
@@ -366,6 +375,7 @@ impl Vehicle {
             engine_volt: 0.0,
             revs: 0.0,
             righting: None,
+            self_righting: None,
             reset_pressed: false,
             last_reset: false,
             no_contact_time: 0.0,
@@ -442,6 +452,10 @@ impl Vehicle {
             if self.righting.is_none() && -down.y <= 0.3 && touching {
                 self.start_righting(bodies, pos, rot);
             }
+        }
+        // `TrolleyAIHandler`: el chango no se deja volcar, toque algo o no.
+        if self.righting.is_none() && self.self_righting.is_some_and(|min_up| -down.y < min_up) {
+            self.start_righting(bodies, pos, rot);
         }
         if self.righting.is_some() {
             self.contacts.clear();

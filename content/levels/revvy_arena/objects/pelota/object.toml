@@ -1,0 +1,12 @@
+# Pelota de prueba de la arena: rebota y suena al picar.
+name = "Pelota"
+mass = 0.3
+friction = 1.5
+restitution = 0.8
+linear_damping = 0.12
+angular_damping = 0.12
+shape = { type = "sphere", radius = 0.2 }
+
+[sound]
+impact = "bote.wav"
+min_speed = 1.5

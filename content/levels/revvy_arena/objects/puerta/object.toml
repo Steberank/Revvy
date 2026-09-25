@@ -1,0 +1,11 @@
+# Hoja de puerta corrediza de la arena: la mueve su camino (motion en layout.ron), no la
+# física. mass es obligatoria pero un objeto con camino no la usa.
+name = "Puerta"
+mass = 20.0
+friction = 0.0
+restitution = 0.0
+shape = { type = "hull" }
+
+[sound]
+start = "abre.wav"
+turn = "cierra.wav"

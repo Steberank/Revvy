@@ -129,6 +129,10 @@ La física es una sola para todo el contenido: **Rapier** (cuerpos rígidos, col
 - **Paso y mandos.** El motor avanza en pasos fijos de 1/180 s, los mismos en el host, el server y los clientes (Re-Volt a 60 cuadros por segundo da tres pasos así). El dibujo interpola entre los dos últimos. Los mandos se leen a 60 Hz fijos: el volante de Re-Volt da su primer paso desde el centro ×4 por cuadro, así que la frecuencia de lectura es parte del manejo.
 - **Chasis en Rapier.** Masa e inercia de `VehicleParams`; las resistencias son el amortiguamiento de Rapier (120 × resistencia da el mismo factor por paso). Las esferas tocan el mundo; los cascos convexos y una esfera por rueda chocan con otros autos (rueda contra carrocería y rueda contra rueda). La fricción y el rebote contra la pista salen de la superficie del triángulo, con un hook de Rapier; en las paredes resbala más y rebota un poco más. El *contact clustering* de Rapier está apagado, para que cada contacto sea de un triángulo.
 - **Enderezar.** Con `R`, si el auto está dado vuelta (`up.y ≤ 0.3`) y toca algo, el chasis pasa a cinemático, sube 25 cm y gira hasta quedar derecho mirando para donde miraba; después vuelve a ser dinámico.
+- **Objetos de pista.** Pelotas, conos, botellas y cajas son cuerpos dinámicos de Rapier con CCD, con la forma (esfera o cascos convexos), la masa, la inercia, la fricción, el rebote y el amortiguamiento de su `ObjectKind`. Chocan con la pista, con los autos (cascos y ruedas) y entre ellos. La fricción y el rebote de cada contacto siguen `body.cpp`: contra la pista se multiplican por la rugosidad y la dureza del triángulo, y en las paredes la fricción va ×0,1 y el rebote +0,1; entre dos cuerpos, se multiplican los de los dos. Un objeto que va a menos de 0,15 m/s y gira a menos de 1 rad/s durante 0,2 s se duerme (`MOV_MoveBodyClever`), y los que en Re-Volt esperan un choque (`COL_WaitForCollision`) arrancan dormidos. Aparecen al empezar o cuando un auto entra en una caja (los lanzadores de Re-Volt). El golpe más fuerte de cada paso (impulso sobre masa, el `BangMag` de Re-Volt) va al sonido.
+- **Objetos con camino.** Un objeto puede seguir un camino fijo que se repite (`ObjectMotion`), como las puertas corredizas de market2: `Slide` va en línea recta hasta un desplazamiento y vuelve, en tantos segundos ida y vuelta, medidos con el reloj del mundo. Es un cuerpo cinemático: Rapier saca de su pose la velocidad con la que empuja autos (cascos y ruedas) y objetos, y despierta a los dormidos; nada lo frena y no choca con la pista. Al salir del punto de partida y al dar la vuelta avisa, para que suenen sus sonidos.
+- **Autos sin conductor.** El chango de los supermercados de Re-Volt es un auto (`InitTrolley`): corre en el mismo motor que los demás, sin mandos. Tab no lo elige, no suena ni dispara triggers, y se endereza solo cuando la Y de su eje vertical baja de 0,5 (`TrolleyAIHandler`), con el mismo enderezado que la **R**. A diferencia de Re-Volt, también aparece en multijugador. Una pista propia puede tener los suyos en su carpeta (§6.4).
+- **Solver sin warmstart.** Reaplicar los impulsos del paso anterior bamboleaba cada vez más un casco apoyado en una cara plana (la base de un cono) hasta volcarlo y hacerle atravesar el piso. Sin warmstart, un contacto en reposo converge peor; por eso los objetos se duermen rápido, como en Re-Volt. El manejo no cambia: los autos se apoyan en las ruedas, que no son contactos de Rapier.
 - **Falta.** Marcas de derrape, chispas y polvo, la antena, el env map del chasis, aceite, speedups y catch-up (el port tampoco los tiene).
 - **Traducción de Re-Volt** (`revvy-formats`, una vez al cargar):
 
@@ -140,8 +144,16 @@ La física es una sola para todo el contenido: **Rapier** (cuerpos rígidos, col
   | `parameters.txt` + defaults de `CARINFO.TXT` | parámetros del vehículo de Revvy, en SI |
   | esferas y cascos convexos del `.hul` | colliders del chasis: las esferas chocan con el mundo y los cascos con otros autos, como en Simulación |
   | `STARTPOS`, `STARTROT`, `STARTGRID` | `start_grid` |
+  | objetos físicos del `.fob` (pelotas, botella, balde, cono, caja, cubo ABC), con su `Init*` de `obj_init.cpp`, `models/<nombre>.m` y su `.hul` | `ObjectKind` en SI y `ObjectSpawn` al empezar |
+  | `OBJECT_TYPE_SLIDER` del `.fob`, `models/slider.m` y `slider.ncp` | objeto con camino: `Slide` de 400 unidades por su eje `R` en 3 s, para el otro lado con id 0 |
+  | `OBJECT_TYPE_TROLLEY` del `.fob` | auto sin conductor (`CarSpawn`) con el auto `cars/trolley` |
+  | `OBJECT_THROWER` del `.fob` y el trigger `.tri` de tipo 6 con su id | `ObjectSpawn` con trigger, a `Speed × 50` unidades/s por el eje del lanzador |
+  | `BangNoiseTable` de `ai.cpp` | sonido de golpe del `ObjectKind` |
+  | triggers `.tri` de tipo 8 (`TriggerRepositionCar`) | `kill_volumes` |
 
   Los parámetros del auto se convierten según su dimensión: largos, velocidades y aceleraciones ×0.005; inercias ×2,5 × 10⁻⁵. La masa ya está en kg, y la rigidez y la amortiguación de los resortes y los coeficientes de fricción no cambian. `TopSpeed` ya está en mph reales. La tabla completa vive en el código de traducción, con tests.
+
+  Los objetos usan las mismas conversiones. Sus modelos se dibujan con las páginas de textura del nivel (la pelota de playa, con `gfx/fxpage1.bmp`) y `MODELRGBPER` del `.inf` escala su color de vértice, también el del chango, como hace `SetupCar` con todos los autos. La lata, la colchoneta, las estrellas, las luces y los regadores como cuerpos quedan afuera, porque no están sus modelos; el log avisa qué tipos no se traducen.
 - **Superficies.** `SurfaceType` cubre los 27 materiales de Re-Volt, en el orden de su índice (`from_revolt` es uno a uno). `revvy-physics::surfaces` da el perfil de cada uno con los valores de `COL_MaterialInfo` en metros: fricción, agarre, dureza, baches y velocidad de las cintas (§7.9).
 
 **El port de referencia.** La fase 2.5 portó directo el motor de Re-Volt en `revvy-physics::revolt`: `newcoll.cpp`, `body.cpp`, `car.cpp`, `wheel.cpp`, `control.cpp`, `move.cpp` y `camera.cpp` de `rvsource/Xbox/Src` (ramas `_PC`, modo Simulación; con un solo auto, igual que Arcade). Corre en el espacio de Re-Volt (1 unidad = 5 mm, Y abajo, matrices de tres filas) con sus constantes tal cual y lee datos sin traducir (`LegacyLevel`, `CarInfo`); `revolt::convert` pasa sus resultados a Revvy.
@@ -178,9 +190,11 @@ El sonido también es del motor de Revvy: Kira como salida y un modelo 3D en el 
   - roce del cuerpo o del costado de una rueda: `scrape.wav`. Servo mientras el volante se mueve. Golpe fuerte (`BangMag` > 500): `hit2.wav`.
 
   El volumen maestro es `sfx_volume` en `config/client.toml`: 90 por defecto, igual que `SFX_DEFAULT_VOL`.
-- **Implementación.** `client/src/audio/`: `mixer.rs` (el modelo 3D, en metros), `car.rs` (un juego de sonidos por auto, con el `VehicleSound` del motor) y `level.rs` (los emisores de `TrackSounds`). Las curvas del auto son las de Re-Volt, que cuentan la velocidad en sus unidades de 5 mm por segundo; el factor está en un solo lugar.
+- **Golpes de objetos.** Cada `ObjectKind` puede traer un sonido de golpe con umbral y offset de volumen: los de Re-Volt salen de `BangNoiseTable` (`ai.cpp`) y los propios, de `[sound]` en `object.toml` (§6.4). Suena en la posición del objeto cuando el cambio de velocidad de un golpe pasa el umbral, con volumen `20 × Δv (m/s) + offset`, de 0 a 127, igual que `AI_BangNoiseHandler`. De Re-Volt: `hood/basketball.wav`, `hood/roadcone.wav`, `bottle.wav`, `market/carton.wav`, `beachball.wav` y `toy/toybrick.wav`.
+- **Caminos de objetos.** Un objeto con camino suena a todo volumen en su punto de partida cuando sale (`start`) y cuando da la vuelta en la otra punta (`turn`). Las puertas de market2 usan `market/sdrsopen.wav` y `market/sdrsclos.wav` (`SFX_MARKET_DOOR_OPEN` y `SFX_MARKET_DOOR_CLOSE` de `AI_SliderHandler`). Los autos sin conductor no suenan, como el chango de Re-Volt.
+- **Implementación.** `client/src/audio/`: `mixer.rs` (el modelo 3D, en metros), `car.rs` (un juego de sonidos por auto, con el `VehicleSound` del motor) y `level.rs` (los emisores de `TrackSounds`). Los golpes de objetos los arma `DriveView` y suenan en `Audio::update`. Las curvas del auto son las de Re-Volt, que cuentan la velocidad en sus unidades de 5 mm por segundo; el factor está en un solo lugar.
 - **Streaming.** Un paquete de pista legacy necesita su banco de `wavs/`, y `map-packager` tiene que incluirlo (fase 8).
-- **Pendiente.** `basketball.wav` y `roadcone.wav` suenan cuando chocan una pelota o un cono, y esos objetos físicos del nivel todavía no existen. También faltan música (MP3 o CD), bocina y sonidos de armas (fase 5).
+- **Pendiente.** El banco `toy` (el golpe del cubo ABC) no está en `content/wavs/`. También faltan música (MP3 o CD), bocina y sonidos de armas (fase 5).
 
 ---
 
@@ -616,7 +630,13 @@ levels/<track_id>/
 ├── track.toml          # metadata: name, author, laps, env, preview
 ├── visual.glb          # escena glTF (Visual + Collision + Props). Nombre fijo.
 ├── preview.png         # thumbnail del selector (reemplaza el bmp de gfx/ de Re-Volt)
-└── layout.ron          # layout de carrera (lo escribe el editor; ver §7)
+├── layout.ron          # layout de carrera (lo escribe el editor; ver §7)
+└── objects/            # objetos sueltos de la pista (pelotas, conos, puertas…), uno por carpeta
+    ├── <nombre>/
+    │   ├── object.toml # física, forma y sonidos
+    │   ├── model.glb   # malla visible + nodos Collision opcionales
+    │   └── golpe.wav   # sonidos (opcionales, los nombres los dice object.toml)
+    └── <auto>/         # un auto sin conductor: car.toml, body.glb y collision.glb (§6.6)
 ```
 
 `track.toml` mínimo:
@@ -637,7 +657,50 @@ Una pista **legacy** sigue siendo la carpeta Re-Volt de siempre (`.w`, `.ncp`, `
 
 No se mezclan en la misma carpeta.
 
-Hoy `gltf_track.rs` lee `track.toml` (la escena es `visual.glb`, o la que diga `visual`), dibuja `Visual` y `Props`, choca con `Collision` (la superficie es el nombre del material) y de `layout.ron` toma por ahora solo `start_grid`. `extras.revvy.collider` todavía no se lee: toda la colisión es malla de triángulos. La pista de prueba es `content/levels/revvy_arena`.
+Hoy `gltf_track.rs` lee `track.toml` (la escena es `visual.glb`, o la que diga `visual`), dibuja `Visual` y `Props`, choca con `Collision` (la superficie es el nombre del material) y de `layout.ron` toma por ahora `start_grid` y `objects`. `extras.revvy.collider` todavía no se lee: toda la colisión es malla de triángulos. La pista de prueba es `content/levels/revvy_arena`.
+
+#### Objetos de una pista propia
+
+Los `Props` de `visual.glb` son decorado fijo. Lo que se mueve (pelotas, conos, botellas…) va en `objects/`, con todo lo suyo adentro y sin datos de Re-Volt, ni siquiera como default. `object.toml` está en SI y el origen del modelo es el centro de masa:
+
+```toml
+name = "Cono"                 # opcional: si falta, el nombre de la carpeta
+model = "model.glb"           # opcional
+mass = 1.2                    # kg
+friction = 0.4                # contra la pista se multiplica por la rugosidad del piso
+restitution = 0.0             # rebote, de 0 a 1
+linear_damping = 0.9          # 1/s (default 0.1)
+angular_damping = 0.1         # 1/s (default 0.1)
+asleep = false                # quieto donde está hasta que algo lo toque
+shape = { type = "hull" }     # o { type = "sphere", radius = 0.2 }
+# inertia = [0.05, 0.06, 0.05]  # kg·m² en los ejes del objeto; si falta, sale de la forma
+
+[sound]                       # opcional, todo en la carpeta del objeto
+impact = "golpe.wav"          # cuando choca fuerte
+min_speed = 1.5               # m/s de cambio de velocidad para que suene el golpe
+volume_offset = 0.0           # se suma al volumen del golpe, que va de 0 a 127
+start = "abre.wav"            # con camino: cuando sale del punto de partida
+turn = "cierra.wav"           # con camino: cuando llega a la otra punta y vuelve
+```
+
+Con `hull`, cada nodo `Collision` del modelo es un casco convexo; sin esos nodos, el casco envuelve la malla visible. `mass` tiene que ser positiva, aunque un objeto con camino no la use.
+
+Las apariciones van en `layout.ron`. `yaw` y `velocity` (m/s) son opcionales, y `spawn` es `Start` (por defecto) o un `Trigger`: una caja que tira el objeto cuando entra un auto, una vez por carrera o de nuevo cada `rearm` segundos. `motion` le da un camino (§1.9): `Slide` va hasta `offset` (m, en los ejes del objeto, girados con `yaw`) y vuelve en `period` segundos, sin que nada lo frene, y empuja lo que encuentra.
+
+Un auto que la pista necesita pero que nadie maneja (un carrito, un chango) también va en `objects/`, con `car.toml`, `body.glb` y `collision.glb` como cualquier auto propio (§6.6). No sale de `cars/`: no es un auto que se elige. En `layout.ron` se nombra igual que un objeto y usa solo `pos` (su centro de masa) y `yaw`; aparece al empezar y se endereza solo si se vuelca.
+
+```ron
+objects: [
+    (object: "cono", pos: (x: 1.5, y: 0.1, z: -32.0)),
+    (object: "pelota", pos: (x: 8.0, y: 1.5, z: -14.0), velocity: (x: -7.0, y: 3.0, z: 0.0),
+     spawn: Trigger(center: (x: 0.0, y: 1.0, z: -20.0), half_extents: (x: 6.0, y: 2.0, z: 1.0), rearm: Some(8.0))),
+    (object: "puerta", pos: (x: -1.0, y: 0.6, z: -8.0), motion: Slide(offset: (x: -2.2, y: 0.0, z: 0.0), period: 4.0)),
+    (object: "puerta", pos: (x: 1.0, y: 0.6, z: -8.0), motion: Slide(offset: (x: 2.2, y: 0.0, z: 0.0), period: 4.0)),
+    (object: "carrito", pos: (x: 3.5, y: 0.3, z: -10.0), yaw: 1.57),
+],
+```
+
+Un objeto que no carga (falta `object.toml` o `car.toml`, el modelo o la forma) se avisa y sus apariciones se saltean; la pista carga igual. En una pista de Re-Volt los objetos salen del `.fob` y de `models/`, y el chango de `cars/trolley`: es la excepción, porque así lo arma Re-Volt (§1.9).
 
 ### 6.5 Coordenadas y traducción legacy
 
@@ -664,14 +727,14 @@ Teclas:
 
 Solo `TrackAsset.visual`. El `.ncp` no se dibuja.
 
-- **Color key** (`texture.cpp`, clave RGB 0): en las texturas de pista, un texel negro queda con alpha 0 y el shader lo descarta. El resto de la cara se dibuja. No aplica a pistas `.glb` ni a autos.
+- **Color key** (`texture.cpp`, clave RGB 0): Re-Volt se lo pone a todas sus texturas (`LoadTextureClever`). Un texel negro queda con alpha 0 y el shader lo descarta; el resto de la cara se dibuja. Aplica a las pistas de Re-Volt y a todos los autos y objetos, también a los propios: el negro puro de su textura es transparente (el espacio entre las barras del chango). No aplica a las pistas `.glb`.
 - **Gouraud negro no es color key.** El techo del túnel de nhood1 tiene vértices en `0,0,0` y textura con color. Re-Volt lo modula a negro y lo dibuja. Revvy también: si se omite la cara, el túnel queda abierto.
 - **Luz global:** `DrawCubePolys` pinta `textura × color de vértice`. No hay sol ni hemisferio encima. En nhood1 `WORLDRGBPER` es 100, así que el gouraud del archivo entra tal cual. `.lit` sigue sin usarse.
 - **Cielo:** `RenderSkybox` pega `sky_ft`, `sky_rt`, `sky_bk`, `sky_lt`, `sky_tp`, `sky_bt` en +Z, −X, −Z, +X, arriba y abajo del archivo. Tras el giro de ejes, el cubemap es +X `sky_rt`, −X `sky_lt`, +Y `sky_tp`, −Y `sky_bt`, +Z `sky_ft`, −Z `sky_bk`.
 
 #### Autos legacy
 
-`load_car` lee `parameters.txt`. Las claves que faltan salen del bloque `CAR 0-28` de `CARINFO.TXT` (`merge_stock_defaults`). Es el archivo de Re-Volt, versionado en `crates/formats/revolt/` y compilado dentro de `revvy-formats`. Esos defaults son solo para autos de Re-Volt: una carpeta con `car.toml` es un auto propio y `load_car` la rechaza (§6.6). `WHEEL 0 - 3` se expande como `ReadNumberList`. `Inertia` sigue en las dos líneas de abajo, igual que en `ReadMat`. Las líneas `;)` de RVGL se leen (§1.5).
+`load_car` lee `parameters.txt`. Las rutas de `MODEL`, `TPAGE` y `COLL` pueden venir con `\` (`cars\trolley\TrollBod.m`, como en los autos de stock): se busca el archivo en la carpeta del auto sin distinguir mayúsculas. Las claves que faltan salen del bloque `CAR 0-28` de `CARINFO.TXT` (`merge_stock_defaults`). Es el archivo de Re-Volt, versionado en `crates/formats/revolt/` y compilado dentro de `revvy-formats`. Esos defaults son solo para autos de Re-Volt: una carpeta con `car.toml` es un auto propio y `load_car` la rechaza (§6.6). `WHEEL 0 - 3` se expande como `ReadNumberList`. `Inertia` sigue en las dos líneas de abajo, igual que en `ReadMat`. Las líneas `;)` de RVGL se leen (§1.5).
 
 `load_car` devuelve:
 
@@ -679,7 +742,7 @@ Solo `TrackAsset.visual`. El `.ncp` no se dibuja.
 - `sound`: la clase y el `SFXENGINE`.
 - El chasis.
 - Una malla por rueda, según el `ModelNum` de cada `WHEEL`.
-- La `TPAGE`, que se dibuja sin color key.
+- La `TPAGE`, que se dibuja con el color key negro.
 - `revolt`: el `CAR_INFO` crudo y las esferas del `.hul` en unidades de Re-Volt. Solo los usa el port de referencia.
 
 Cómo se dibuja, igual que `DrawCar`:
@@ -690,7 +753,7 @@ Cómo se dibuja, igual que `DrawCar`:
 
 ### 6.6 Autos y props desde Blockbench
 
-Blockbench es el DCC natural para **autos y props** (low-poly, UV, animaciones simples). Mismo contrato: export `.glb`. Un auto nuevo:
+Blockbench es el DCC natural para **autos y props** (low-poly, UV, animaciones simples). Mismo contrato: export `.glb`. Un objeto suelto de pista es un `model.glb` en `objects/<nombre>/` de la pista (§6.4). Un auto nuevo:
 
 ```
 cars/<car_id>/
@@ -699,7 +762,7 @@ cars/<car_id>/
 └── collision.glb       # nodos Sphere* (tocan el mundo) + cascos convexos (contra otros autos)
 ```
 
-Un auto propio trae en `car.toml`, en la tabla `[vehicle]`, los parámetros del vehículo de Revvy (§1.9). Es el mismo tipo que sale de traducir un `parameters.txt`, así que los dos corren en el mismo motor y en la misma carrera. Están pensados para manejarse lo más parecido posible a Re-Volt, sin código de Re-Volt, y nunca usan `CARINFO.TXT` ni otros datos de Re-Volt, tampoco como default: con `car.toml` en la carpeta, `load_car` no mira un `parameters.txt`. La forma de choque sale de `[vehicle.chassis]`, si no de `collision.glb`, y si no del casco del chasis visible (peor). `[sound]` elige el tipo de motor (`electric` o `petrol`) y un sample propio opcional. La escala es la de los autos de Re-Volt, que son de radiocontrol (el Calcure mide 68 cm), para que convivan en la misma pista. El auto de prueba es `content/cars/revvy_buggy`, que genera `tools/test-content/generate.py`. El legado `.prm` + `parameters.txt` no se toca.
+En las texturas de autos y objetos, propios o no, el negro puro (0, 0, 0) no se dibuja, como en Re-Volt; para un negro visible, usar (1, 1, 1). Un auto propio trae en `car.toml`, en la tabla `[vehicle]`, los parámetros del vehículo de Revvy (§1.9). Es el mismo tipo que sale de traducir un `parameters.txt`, así que los dos corren en el mismo motor y en la misma carrera. Están pensados para manejarse lo más parecido posible a Re-Volt, sin código de Re-Volt, y nunca usan `CARINFO.TXT` ni otros datos de Re-Volt, tampoco como default: con `car.toml` en la carpeta, `load_car` no mira un `parameters.txt`. La forma de choque sale de `[vehicle.chassis]`, si no de `collision.glb`, y si no del casco del chasis visible (peor). `[sound]` elige el tipo de motor (`electric` o `petrol`) y un sample propio opcional. La escala es la de los autos de Re-Volt, que son de radiocontrol (el Calcure mide 68 cm), para que convivan en la misma pista. El auto de prueba es `content/cars/revvy_buggy`, que genera `tools/test-content/generate.py`. El legado `.prm` + `parameters.txt` no se toca.
 
 #### 6.6.1 Autos custom vs catálogo oficial
 

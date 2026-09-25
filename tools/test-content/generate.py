@@ -4,14 +4,18 @@
 Genera, relativo a la raíz del repo:
 
 - content/cars/revvy_buggy/: car.toml, body.glb y collision.glb.
-- content/levels/revvy_arena/: track.toml, visual.glb y layout.ron.
+- content/levels/revvy_arena/: track.toml, visual.glb y layout.ron, y los objetos propios
+  en objects/<nombre>/: object.toml, model.glb y sonidos sintéticos (golpe, o abrir y
+  cerrar), o un auto sin conductor con car.toml, body.glb y collision.glb.
 
 Uso: python3 tools/test-content/generate.py
 """
 
 import json
 import math
+import random
 import struct
+import wave
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -160,6 +164,34 @@ class Geometry:
         self.quad((x0, 0.0, z1), (x1, 0.0, z1), (x1, height, z1), (x0, height, z1))
         self.tri((x1, 0.0, z0), (x1, height, z1), (x1, 0.0, z1))
         self.tri((x0, 0.0, z0), (x0, 0.0, z1), (x0, height, z1))
+
+    def cone(self, radius, height, base_y, segments=16):
+        """Cono sobre +Y con la base en `base_y`, cerrado abajo."""
+        apex = (0.0, base_y + height, 0.0)
+        centre = (0.0, base_y, 0.0)
+        ring = [(math.cos(2 * math.pi * i / segments) * radius, math.sin(2 * math.pi * i / segments) * radius)
+                for i in range(segments)]
+        for i in range(segments):
+            (x0, z0), (x1, z1) = ring[i], ring[(i + 1) % segments]
+            self.tri((x0, base_y, z0), apex, (x1, base_y, z1))
+            self.tri(centre, (x0, base_y, z0), (x1, base_y, z1))
+
+    def sphere(self, radius, rings=10, segments=16):
+        """Esfera centrada en el origen, con normales suaves."""
+        base = len(self.positions)
+        for r in range(rings + 1):
+            phi = math.pi * r / rings
+            for i in range(segments + 1):
+                theta = 2 * math.pi * i / segments
+                n = (math.sin(phi) * math.cos(theta), math.cos(phi), math.sin(phi) * math.sin(theta))
+                self.positions.append(tuple(c * radius for c in n))
+                self.normals.append(n)
+        width = segments + 1
+        for r in range(rings):
+            for i in range(segments):
+                a = base + r * width + i
+                b = a + width
+                self.indices += [a, a + 1, b, a + 1, b + 1, b]
 
     def cylinder_x(self, radius, width, segments=16):
         """Rueda: cilindro sobre el eje X, centrado en el origen."""
@@ -376,10 +408,238 @@ def arena():
         f"        (pos: (x: {x:.2f}, y: 0.3, z: {z:.2f}), yaw: 0.0),"
         for x, z in [(0.0, -40.0), (-1.3, -40.2), (0.0, -41.5), (-1.3, -41.7)]
     )
+    objects()
     (folder / "layout.ron").write_text(
-        "// Grilla de largada de la arena de prueba. El resto del layout llega con el editor.\n"
-        "TrackLayout(\n    version: 1,\n    start_grid: [\n" + slots + "\n    ],\n)\n"
+        "// Largada y objetos de la arena de prueba. El resto del layout llega con el editor.\n"
+        "TrackLayout(\n    version: 1,\n    start_grid: [\n" + slots + "\n    ],\n"
+        + LAYOUT_OBJECTS + ")\n"
     )
+
+
+# ------------------------------------------------------------------ objetos propios
+
+CONE_HEIGHT = 0.4
+CONE_RADIUS = 0.14
+BALL_RADIUS = 0.2
+
+CONE_TOML = """# Cono de prueba de la arena: un objeto propio, sin datos de Re-Volt.
+# SI, relativo al origen del modelo, que es el centro de masa (un cuarto de la altura).
+name = "Cono"
+mass = 1.2
+friction = 0.4
+restitution = 0.0
+linear_damping = 0.9
+angular_damping = 0.1
+shape = { type = "hull" }
+
+[sound]
+impact = "golpe.wav"
+min_speed = 1.5
+volume_offset = -15.0
+"""
+
+BALL_TOML = """# Pelota de prueba de la arena: rebota y suena al picar.
+name = "Pelota"
+mass = 0.3
+friction = 1.5
+restitution = 0.8
+linear_damping = 0.12
+angular_damping = 0.12
+shape = { type = "sphere", radius = 0.2 }
+
+[sound]
+impact = "bote.wav"
+min_speed = 1.5
+"""
+
+DOOR_SIZE = (2.0, 1.2, 0.08)
+
+DOOR_TOML = """# Hoja de puerta corrediza de la arena: la mueve su camino (motion en layout.ron), no la
+# física. mass es obligatoria pero un objeto con camino no la usa.
+name = "Puerta"
+mass = 20.0
+friction = 0.0
+restitution = 0.0
+shape = { type = "hull" }
+
+[sound]
+start = "abre.wav"
+turn = "cierra.wav"
+"""
+
+# Un slalom de conos delante de la largada y una pelota que cruza la pista cuando un auto
+# pasa por el trigger; vuelve a tirarla 8 s después. Más adelante, dos hojas de puerta que
+# se abren hacia los costados y se cierran cada 4 s, y un carrito sin conductor para
+# empujar.
+LAYOUT_OBJECTS = """    objects: [
+        (object: "cono", pos: (x: 1.5, y: 0.1, z: -32.0)),
+        (object: "cono", pos: (x: -1.5, y: 0.1, z: -28.0)),
+        (object: "cono", pos: (x: 1.5, y: 0.1, z: -24.0)),
+        (object: "pelota", pos: (x: 8.0, y: 1.5, z: -14.0), velocity: (x: -7.0, y: 3.0, z: 0.0),
+         spawn: Trigger(center: (x: 0.0, y: 1.0, z: -20.0), half_extents: (x: 6.0, y: 2.0, z: 1.0), rearm: Some(8.0))),
+        (object: "puerta", pos: (x: -1.0, y: 0.6, z: -8.0), motion: Slide(offset: (x: -2.2, y: 0.0, z: 0.0), period: 4.0)),
+        (object: "puerta", pos: (x: 1.0, y: 0.6, z: -8.0), motion: Slide(offset: (x: 2.2, y: 0.0, z: 0.0), period: 4.0)),
+        (object: "carrito", pos: (x: 3.5, y: 0.3, z: -10.0), yaw: 1.57),
+    ],
+"""
+
+CART_WHEELS = {
+    "WheelFL": (0.14, 0.0, 0.18),
+    "WheelFR": (-0.14, 0.0, 0.18),
+    "WheelBL": (0.14, 0.0, -0.18),
+    "WheelBR": (-0.14, 0.0, -0.18),
+}
+CART_WHEEL_RADIUS = 0.04
+
+CART_TOML = """# Carrito de la arena: un auto sin conductor que vive en la carpeta de la pista. Nadie lo
+# maneja: se mueve cuando lo empujan y se endereza solo si se vuelca.
+name = "Carrito"
+body = "body.glb"
+collision = "collision.glb"
+
+[vehicle]
+mass = 2.0
+inertia = [[0.06, 0.0, 0.0], [0.0, 0.061, 0.0], [0.0, 0.0, 0.037]]
+gravity = 11.0
+hardness = 0.0
+resistance = 0.001
+angular_resistance = 0.001
+angular_resistance_air = 25.0
+grip = 0.01
+static_friction = 0.8
+kinetic_friction = 0.4
+body_offset = [0.0, 0.0, 0.0]
+steer_rate = 3.0
+engine_rate = 4.5
+top_speed = 10.0
+down_force = 2.0
+"""
+
+
+def knock_wav(path, pitch, length, seed):
+    """Golpe corto: ruido y un tono que se apagan, mono 16 bits a 22050 Hz."""
+    rate = 22050
+    rng = random.Random(seed)
+    frames = bytearray()
+    for i in range(int(rate * length)):
+        t = i / rate
+        decay = math.exp(-t * 28.0)
+        sample = 0.55 * math.sin(2 * math.pi * pitch * t) + 0.45 * (rng.random() * 2 - 1)
+        frames += struct.pack("<h", int(max(-1.0, min(1.0, sample * decay)) * 26000))
+    with wave.open(str(path), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(rate)
+        out.writeframes(bytes(frames))
+
+
+def slide_wav(path, length, seed):
+    """Roce de una puerta que corre: ruido filtrado que sube y se apaga."""
+    rate = 22050
+    rng = random.Random(seed)
+    frames = bytearray()
+    smooth = 0.0
+    for i in range(int(rate * length)):
+        t = i / rate
+        smooth += 0.08 * ((rng.random() * 2 - 1) - smooth)
+        envelope = math.sin(math.pi * t / length) ** 2
+        sample = 2.2 * smooth * envelope + 0.15 * math.sin(2 * math.pi * 60.0 * t) * envelope
+        frames += struct.pack("<h", int(max(-1.0, min(1.0, sample)) * 26000))
+    with wave.open(str(path), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(rate)
+        out.writeframes(bytes(frames))
+
+
+def cart(folder):
+    """Auto sin conductor: car.toml, body.glb y collision.glb, como un auto propio."""
+    folder.mkdir(parents=True, exist_ok=True)
+    text = CART_TOML
+    for (x, y, z) in CART_WHEELS.values():
+        text += WHEEL_TOML.format(
+            powered="false", steered="false", x=x, y=y, z=z, radius=CART_WHEEL_RADIUS,
+            steer_ratio=0.0, engine_ratio=0.0, grip=2.0, static_friction=1.9, kinetic_friction=1.7,
+        )
+    (folder / "car.toml").write_text(text)
+
+    glb = Glb()
+    frame = Geometry()
+    frame.box((-0.16, 0.02, -0.24), (0.16, 0.05, 0.24))
+    basket = Geometry()
+    basket.box((-0.17, 0.08, -0.25), (0.17, 0.3, 0.25))
+    handle = Geometry()
+    handle.box((-0.17, 0.3, -0.29), (0.17, 0.33, -0.26))
+    body = glb.node("Body", glb.mesh([
+        (frame, "Frame", (0.35, 0.35, 0.38)),
+        (basket, "Basket", (0.2, 0.45, 0.85)),
+        (handle, "Handle", (0.85, 0.15, 0.1)),
+    ]))
+    wheel_geometry = Geometry()
+    wheel_geometry.cylinder_x(CART_WHEEL_RADIUS, 0.03)
+    wheel_mesh = glb.mesh([(wheel_geometry, "Tyre", (0.08, 0.08, 0.08))])
+    wheels = [glb.node(name, wheel_mesh, translation=pos) for name, pos in CART_WHEELS.items()]
+    glb.write(folder / "body.glb", [body] + wheels)
+
+    collision = Glb()
+    hull = Geometry()
+    hull.box((-0.175, 0.01, -0.29), (0.175, 0.33, 0.255))
+    nodes = [collision.node("Hull", collision.mesh([(hull, "Hull", (1, 1, 1))]))]
+    for i, (x, y, z, r) in enumerate([
+        (0.13, 0.05, 0.2, 0.045), (-0.13, 0.05, 0.2, 0.045),
+        (0.13, 0.05, -0.2, 0.045), (-0.13, 0.05, -0.2, 0.045),
+        (0.0, 0.2, 0.0, 0.12),
+    ]):
+        sphere = Geometry()
+        sphere.box((x - r, y - r, z - r), (x + r, y + r, z + r))
+        nodes.append(collision.node(f"Sphere{i + 1}", collision.mesh([(sphere, "Sphere", (1, 1, 1))])))
+    collision.write(folder / "collision.glb", nodes)
+
+
+def objects():
+    folder = ROOT / "content" / "levels" / "revvy_arena" / "objects"
+
+    cone_dir = folder / "cono"
+    cone_dir.mkdir(parents=True, exist_ok=True)
+    (cone_dir / "object.toml").write_text(CONE_TOML)
+    glb = Glb()
+    body = Geometry()
+    body.cone(CONE_RADIUS, CONE_HEIGHT, -CONE_HEIGHT / 4)
+    base = Geometry()
+    base.box((-0.16, -CONE_HEIGHT / 4, -0.16), (0.16, -CONE_HEIGHT / 4 + 0.02, 0.16))
+    visual = glb.node("Cono", glb.mesh([(body, "ConePaint", (1.0, 0.42, 0.05)), (base, "ConeBase", (0.1, 0.1, 0.1))]))
+    hull = Geometry()
+    hull.cone(0.16, CONE_HEIGHT, -CONE_HEIGHT / 4, segments=8)
+    collision = glb.node("Collision", children=[glb.node("Casco", glb.mesh([(hull, "Hull", (1, 1, 1))]))])
+    glb.write(cone_dir / "model.glb", [visual, collision])
+    knock_wav(cone_dir / "golpe.wav", 180.0, 0.18, 1)
+
+    ball_dir = folder / "pelota"
+    ball_dir.mkdir(parents=True, exist_ok=True)
+    (ball_dir / "object.toml").write_text(BALL_TOML)
+    glb = Glb()
+    ball = Geometry()
+    ball.sphere(BALL_RADIUS)
+    glb.write(ball_dir / "model.glb", [glb.node("Pelota", glb.mesh([(ball, "BallPaint", (0.95, 0.5, 0.1))]))])
+    knock_wav(ball_dir / "bote.wav", 95.0, 0.22, 2)
+
+    door_dir = folder / "puerta"
+    door_dir.mkdir(parents=True, exist_ok=True)
+    (door_dir / "object.toml").write_text(DOOR_TOML)
+    glb = Glb()
+    w, h, d = (c / 2.0 for c in DOOR_SIZE)
+    glass = Geometry()
+    glass.box((-w, -h, -d), (w, h, d))
+    bar = Geometry()
+    bar.box((-w, 0.05, -d - 0.01), (w, 0.12, d + 0.01))
+    glb.write(door_dir / "model.glb", [glb.node("Puerta", glb.mesh([
+        (glass, "DoorGlass", (0.55, 0.75, 0.85)),
+        (bar, "DoorBar", (0.15, 0.15, 0.17)),
+    ]))])
+    slide_wav(door_dir / "abre.wav", 0.6, 3)
+    knock_wav(door_dir / "cierra.wav", 70.0, 0.3, 4)
+
+    cart(folder / "carrito")
 
 
 if __name__ == "__main__":

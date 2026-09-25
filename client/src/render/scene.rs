@@ -1,17 +1,24 @@
 //! Pipeline opaco: posición, normal, UV y textura. La colisión no se dibuja.
-//! Cada malla elige una matriz de modelo: la pista usa la identidad y cada auto
-//! (chasis + cuatro ruedas) las que escribe la física en cada frame.
+//! Cada malla elige una matriz de modelo: la pista usa la identidad, cada auto (chasis +
+//! cuatro ruedas) y cada objeto las que escribe la física en cada frame.
 
 use glam::{Mat4, Vec3};
 use revvy_formats::VisualMesh;
 
 /// Autos que se pueden dibujar a la vez: los 32 de una sala (§5 de la arquitectura).
 pub const MAX_CARS: usize = 32;
-/// Slot 0 = identidad (pista). Después, cinco por auto: chasis y ruedas FL, FR, BL, BR.
-/// Con 32 autos son 161 matrices de 256 bytes (41 KB); cada frame se escriben las usadas.
-pub const MODEL_SLOTS: usize = 1 + 5 * MAX_CARS;
+/// Objetos de la pista que se dibujan a la vez: pelotas, conos, botellas…
+pub const MAX_OBJECTS: usize = 128;
+/// Primer slot de los objetos, después de los de los autos.
+const OBJECT_SLOT: usize = 1 + 5 * MAX_CARS;
+/// Slot 0 = identidad (pista). Después, cinco por auto (chasis y ruedas FL, FR, BL, BR) y
+/// uno por objeto: 289 matrices de 256 bytes (74 KB). Cada frame se escriben las usadas.
+pub const MODEL_SLOTS: usize = OBJECT_SLOT + MAX_OBJECTS;
 /// Alineación mínima de offsets dinámicos de uniform en wgpu.
 const MODEL_STRIDE: u64 = 256;
+
+/// Mallas y texturas propias de un tipo de objeto. Sin texturas, usa las de la pista.
+pub type ObjectMeshes<'a> = (&'a [VisualMesh], &'a [(i16, image::RgbaImage)]);
 
 pub struct Scene {
     pipeline: wgpu::RenderPipeline,
@@ -20,7 +27,11 @@ pub struct Scene {
     sampler: wgpu::Sampler,
     white: wgpu::TextureView,
     track: Vec<DrawMesh>,
+    /// Las páginas de la pista, que también usan los objetos de Re-Volt.
+    track_pages: Vec<(i16, wgpu::TextureView)>,
     car: Vec<DrawMesh>,
+    /// Las mallas de cada tipo de objeto. Se dibujan una vez por objeto, con su slot.
+    object_kinds: Vec<Vec<DrawMesh>>,
     model_buffer: wgpu::Buffer,
     model_bind: wgpu::BindGroup,
     depth: Option<wgpu::TextureView>,
@@ -208,7 +219,9 @@ impl Scene {
             sampler,
             white,
             track: Vec::new(),
+            track_pages: Vec::new(),
             car: Vec::new(),
+            object_kinds: Vec::new(),
             model_buffer,
             model_bind,
             depth: None,
@@ -265,6 +278,45 @@ impl Scene {
                 self.static_mesh(device, queue, mesh, view, Mat4::IDENTITY, 0)
             })
             .collect();
+        self.track_pages = views;
+        self.object_kinds.clear();
+    }
+
+    /// Las mallas de cada tipo de objeto, con sus texturas o, si no trae, con las páginas
+    /// de la pista (los objetos de Re-Volt). Va después de `upload_track`. El negro puro de
+    /// sus texturas no se dibuja, como en todas las texturas de Re-Volt.
+    pub fn upload_objects(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        kinds: &[ObjectMeshes],
+    ) {
+        let mut out = Vec::with_capacity(kinds.len());
+        for (meshes, textures) in kinds {
+            let own: Vec<(i16, wgpu::TextureView)> = textures
+                .iter()
+                .map(|(page, image)| (*page, rgba_texture(device, queue, image, true)))
+                .collect();
+            let pages = if textures.is_empty() {
+                &self.track_pages
+            } else {
+                &own
+            };
+            let draws = meshes
+                .iter()
+                .filter(|mesh| !mesh.indices.is_empty())
+                .map(|mesh| {
+                    let view = pages
+                        .iter()
+                        .find(|(page, _)| *page == mesh.texture_page)
+                        .map(|(_, view)| view)
+                        .unwrap_or(&self.white);
+                    self.static_mesh(device, queue, mesh, view, Mat4::IDENTITY, 0)
+                })
+                .collect();
+            out.push(draws);
+        }
+        self.object_kinds = out;
     }
 
     /// Chasis y ruedas de cada auto. En cada auto, `parts[0]` es el chasis y
@@ -278,7 +330,8 @@ impl Scene {
     ) {
         let mut out = Vec::new();
         for (index, (parts, texture)) in cars.iter().enumerate().take(MAX_CARS) {
-            let view = texture.map(|image| rgba_texture(device, queue, image, false));
+            // El negro puro no se dibuja: el espacio entre las barras del chango.
+            let view = texture.map(|image| rgba_texture(device, queue, image, true));
             for (part, meshes) in parts.iter().enumerate().take(5) {
                 let slot = 1 + index * 5 + part;
                 for mesh in meshes.iter().filter(|mesh| !mesh.indices.is_empty()) {
@@ -373,6 +426,7 @@ impl Scene {
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn draw(
         &self,
         queue: &wgpu::Queue,
@@ -382,13 +436,21 @@ impl Scene {
         aspect: f32,
         camera: &CameraView,
         models: &[Mat4],
+        objects: &[(usize, Mat4)],
     ) {
         let Some(depth) = &self.depth else { return };
-        let used = (1 + models.len()).min(MODEL_SLOTS);
+        let objects = &objects[..objects.len().min(MAX_OBJECTS)];
+        let used = if objects.is_empty() {
+            (1 + models.len()).min(OBJECT_SLOT)
+        } else {
+            OBJECT_SLOT + objects.len()
+        };
         let mut model_bytes = vec![0u8; (MODEL_STRIDE as usize) * used];
         for slot in 0..used {
             let matrix = if slot == 0 {
                 Mat4::IDENTITY
+            } else if slot >= OBJECT_SLOT {
+                objects[slot - OBJECT_SLOT].1
             } else {
                 models.get(slot - 1).copied().unwrap_or(Mat4::IDENTITY)
             };
@@ -462,6 +524,12 @@ impl Scene {
                 draw_mesh(&mut pass, mesh, &self.model_bind);
             }
         }
+        for (i, &(kind, _)) in objects.iter().enumerate() {
+            let slot = (OBJECT_SLOT + i) as u32;
+            for mesh in self.object_kinds.get(kind).into_iter().flatten() {
+                draw_mesh_at(&mut pass, mesh, &self.model_bind, slot);
+            }
+        }
     }
 
     fn static_mesh(
@@ -506,8 +574,18 @@ impl Scene {
 }
 
 fn draw_mesh(pass: &mut wgpu::RenderPass<'_>, mesh: &DrawMesh, model_bind: &wgpu::BindGroup) {
+    draw_mesh_at(pass, mesh, model_bind, mesh.slot);
+}
+
+/// Una malla con la matriz del slot `slot`.
+fn draw_mesh_at(
+    pass: &mut wgpu::RenderPass<'_>,
+    mesh: &DrawMesh,
+    model_bind: &wgpu::BindGroup,
+    slot: u32,
+) {
     pass.set_bind_group(0, &mesh.bind, &[]);
-    pass.set_bind_group(1, model_bind, &[mesh.slot * MODEL_STRIDE as u32]);
+    pass.set_bind_group(1, model_bind, &[slot * MODEL_STRIDE as u32]);
     pass.set_vertex_buffer(0, mesh.vertex.slice(..));
     pass.set_index_buffer(mesh.index.slice(..), wgpu::IndexFormat::Uint32);
     pass.draw_indexed(0..mesh.index_count, 0, 0..1);
@@ -806,7 +884,8 @@ fn rgba_texture(
     image: &image::RgbaImage,
     color_key: bool,
 ) -> wgpu::TextureView {
-    // `texture.cpp`: en la pista el color key es el negro puro. Esos texels no se dibujan.
+    // `LoadTextureClever` le pone a cada textura de Re-Volt el color key negro: esos texels
+    // no se dibujan. Vale para las pistas de Re-Volt y para todos los autos y objetos.
     let mut keyed = image.clone();
     for pixel in keyed.pixels_mut() {
         if color_key && pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0 {

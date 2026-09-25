@@ -139,6 +139,19 @@ fn visit(node: &gltf::Node, parent: Mat4, ancestors: &mut Vec<String>, blob: Opt
     ancestors.pop();
 }
 
+/// Los vértices de las primitivas de un nodo, con la matriz `matrix`.
+pub fn node_points(node: &GlbNode, matrix: Mat4) -> Vec<Vec3> {
+    node.primitives
+        .iter()
+        .flat_map(|primitive| {
+            primitive
+                .positions
+                .iter()
+                .map(move |&p| matrix.transform_point3(p))
+        })
+        .collect()
+}
+
 /// Mallas visibles: cada primitiva con la matriz `to_space`, el color base por vértice y
 /// una luz fija horneada. La página de textura es el índice de la imagen, o -1.
 pub fn visual_meshes(nodes: &[&GlbNode], to_space: impl Fn(&GlbNode) -> Mat4) -> Vec<VisualMesh> {

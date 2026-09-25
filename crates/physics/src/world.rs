@@ -5,13 +5,14 @@
 //! de Re-Volt traducido o de una `.glb`: el motor no distingue una de otra. Los autos
 //! entran con sus `VehicleParams`, sean de Re-Volt o propios.
 
-use glam::Vec3;
+use glam::{Quat, Vec3};
 use rapier3d::parry::bounding_volume::Aabb;
 use rapier3d::parry::query::{Ray, RayCast};
 use rapier3d::parry::shape::{TriMesh, TriMeshFlags};
 use rapier3d::prelude::*;
-use revvy_formats::{Collision, SurfaceType, VehicleParams};
+use revvy_formats::{Collision, MotionCue, ObjectKind, ObjectMotion, SurfaceType, VehicleParams};
 
+use crate::objects::{Mover, ObjectMaterial, Prop};
 use crate::surfaces;
 use crate::vehicle_controller::{CarMaterial, Controls, Vehicle};
 
@@ -35,10 +36,13 @@ pub(crate) const GROUP_CAMERA_ONLY: Group = Group::GROUP_2;
 pub(crate) const GROUP_OBJECT_ONLY: Group = Group::GROUP_3;
 pub(crate) const GROUP_CAR_SKIN: Group = Group::GROUP_4;
 pub(crate) const GROUP_CAR_HULL: Group = Group::GROUP_5;
+/// Objetos de la pista: chocan con la pista, con los autos y entre ellos.
+pub(crate) const GROUP_OBJECT: Group = Group::GROUP_6;
 
 /// `user_data` de los colliders: tipo en la parte alta, índice en la baja.
 const TAG_TRACK: u128 = 1 << 64;
 pub(crate) const TAG_CAR: u128 = 2 << 64;
+pub(crate) const TAG_OBJECT: u128 = 3 << 64;
 const TAG_MASK: u128 = !0u128 << 64;
 
 /// Quién consulta la pista: las ruedas y los autos, o la cámara.
@@ -86,6 +90,7 @@ pub struct PhysicsWorld {
     ccd: CCDSolver,
     track: Vec<TrackMesh>,
     vehicles: Vec<Vehicle>,
+    props: Vec<Prop>,
     accumulator: f32,
     ticks: u32,
 }
@@ -119,9 +124,9 @@ impl PhysicsWorld {
                 continue;
             }
             let (member, filter) = match (camera, objects) {
-                (true, true) => (GROUP_WORLD, GROUP_CAR_SKIN),
+                (true, true) => (GROUP_WORLD, GROUP_CAR_SKIN | GROUP_OBJECT),
                 (true, false) => (GROUP_CAMERA_ONLY, Group::NONE),
-                _ => (GROUP_OBJECT_ONLY, GROUP_CAR_SKIN),
+                _ => (GROUP_OBJECT_ONLY, GROUP_CAR_SKIN | GROUP_OBJECT),
             };
             let shape = build_trimesh(vertices, indices, surfaces.len());
             let collider = ColliderBuilder::new(SharedShape::new(shape))
@@ -141,9 +146,15 @@ impl PhysicsWorld {
             pipeline: PhysicsPipeline::new(),
             // Sin clusters, cada contacto del chasis con la pista es de un triángulo: el hook
             // de superficies lee su material y los contactos quedan en `manifolds`.
+            // Sin warmstart: reaplicar los impulsos del paso anterior bombea el bamboleo de un
+            // casco apoyado en una cara plana (la base de un cono propio) hasta que se vuelca
+            // y atraviesa el piso. Sin warmstart, un contacto en reposo converge peor y un cono
+            // en una pendiente termina ladeado; por eso los objetos se duermen a los 0.2 s
+            // quietos, como en Re-Volt (`objects.rs`). Los autos no se apoyan en el chasis.
             integration: IntegrationParameters {
                 dt: TICK,
                 contact_clustering: false,
+                warmstart_coefficient: 0.0,
                 ..IntegrationParameters::default()
             },
             islands: IslandManager::new(),
@@ -154,6 +165,7 @@ impl PhysicsWorld {
             ccd: CCDSolver::new(),
             track,
             vehicles: Vec::new(),
+            props: Vec::new(),
             accumulator: 0.0,
             ticks: 0,
         }
@@ -165,6 +177,78 @@ impl PhysicsWorld {
         let vehicle = Vehicle::spawn(params, index, pos, yaw, &mut self.bodies, &mut self.colliders);
         self.vehicles.push(vehicle);
         index
+    }
+
+    /// Un auto sin conductor se endereza solo cuando la Y de su eje vertical baja de
+    /// `min_up`, como el chango de Re-Volt (`TrolleyAIHandler`). `None`: queda como cae.
+    pub fn set_self_righting(&mut self, index: usize, min_up: Option<f32>) {
+        self.vehicles[index].self_righting = min_up;
+    }
+
+    /// Agrega un objeto del tipo `kind_index` (el `ObjectKind` es `kind`) con su centro de
+    /// masa en `pos`. `None` si su forma no sirve.
+    pub fn add_object(
+        &mut self,
+        kind_index: usize,
+        kind: &ObjectKind,
+        pos: Vec3,
+        rot: Quat,
+        velocity: Vec3,
+    ) -> Option<usize> {
+        self.spawn_prop(kind_index, kind, (pos, rot), Mover::Physics(velocity))
+    }
+
+    /// Agrega un objeto que sigue `motion` desde `pos`, sin que nada lo frene: empuja autos
+    /// y objetos y no choca con la pista. `None` si su forma no sirve.
+    pub fn add_moving_object(
+        &mut self,
+        kind_index: usize,
+        kind: &ObjectKind,
+        pos: Vec3,
+        rot: Quat,
+        motion: ObjectMotion,
+    ) -> Option<usize> {
+        self.spawn_prop(kind_index, kind, (pos, rot), Mover::Path(motion))
+    }
+
+    fn spawn_prop(
+        &mut self,
+        kind_index: usize,
+        kind: &ObjectKind,
+        pose: (Vec3, Quat),
+        mover: Mover,
+    ) -> Option<usize> {
+        let index = self.props.len();
+        let now = self.time();
+        let world = (&mut self.bodies, &mut self.colliders);
+        let prop = Prop::spawn(kind_index, kind, index, pose, mover, now, world)?;
+        self.props.push(prop);
+        Some(index)
+    }
+
+    pub fn objects(&self) -> &[Prop] {
+        &self.props
+    }
+
+    /// Las puntas de camino por las que pasaron los objetos desde la última llamada.
+    pub fn take_motion_cues(&mut self) -> Vec<(usize, MotionCue)> {
+        self.props
+            .iter_mut()
+            .enumerate()
+            .filter_map(|(i, prop)| Some((i, prop.take_cue()?)))
+            .collect()
+    }
+
+    /// Los golpes desde la última llamada: (objeto, cambio de velocidad en m/s).
+    pub fn take_knocks(&mut self) -> Vec<(usize, f32)> {
+        self.props
+            .iter_mut()
+            .enumerate()
+            .filter_map(|(i, prop)| {
+                let knock = prop.take_knock();
+                (knock > 0.0).then_some((i, knock))
+            })
+            .collect()
     }
 
     /// Un frame: pasos fijos de `TICK` hasta consumir el tiempo. `controls[i]` maneja el
@@ -185,17 +269,30 @@ impl PhysicsWorld {
         self.accumulator / TICK
     }
 
+    /// Segundos simulados desde que se creó el mundo, al final del último paso. Es el reloj
+    /// de los caminos de los objetos.
+    pub fn time(&self) -> f64 {
+        f64::from(self.ticks) * f64::from(TICK)
+    }
+
     fn tick(&mut self, controls: &[Controls]) {
         let control_dt = (self.ticks % CONTROL_TICKS == 0).then_some(TICK * CONTROL_TICKS as f32);
+        let before = self.time();
         self.ticks = self.ticks.wrapping_add(1);
+        let now = self.time();
         for (i, vehicle) in self.vehicles.iter_mut().enumerate() {
             let controls = controls.get(i).copied().unwrap_or_default();
             vehicle.pre_step(&controls, control_dt, &mut self.bodies, &self.colliders, &self.track, TICK);
         }
+        for prop in &self.props {
+            prop.pre_step(&mut self.bodies, now);
+        }
         let materials: Vec<CarMaterial> = self.vehicles.iter().map(Vehicle::material).collect();
+        let objects: Vec<ObjectMaterial> = self.props.iter().map(|prop| prop.material).collect();
         let hooks = SurfaceHooks {
             track: &self.track,
             cars: &materials,
+            objects: &objects,
         };
         self.pipeline.step(
             Vec3::new(0.0, -GRAVITY, 0.0),
@@ -213,6 +310,9 @@ impl PhysicsWorld {
         );
         for vehicle in &mut self.vehicles {
             vehicle.post_step(&mut self.bodies, &mut self.colliders, &self.narrow_phase, &self.track, TICK);
+        }
+        for prop in &mut self.props {
+            prop.post_step(&mut self.bodies, &self.narrow_phase, (before, now));
         }
     }
 
@@ -374,11 +474,53 @@ pub(crate) fn sphere_triangle(old: Vec3, new: Vec3, radius: f32, [a, b, c]: [Vec
     })
 }
 
-/// Fricción y rebote del chasis contra la pista, por la superficie del triángulo, como
-/// `DetectConvexHullPolyColls`: en las paredes resbala más y rebota un poco más.
+/// Fricción y rebote de cada contacto, con las reglas de `body.cpp`:
+///
+/// - Un cuerpo (auto u objeto) contra la pista, por la superficie del triángulo, como
+///   `DetectConvexHullPolyColls`: la fricción y el rebote del cuerpo por la rugosidad y la
+///   dureza del material. En las paredes resbala más y rebota un poco más.
+/// - Un objeto contra un auto u otro objeto: el producto de los dos. Auto contra auto lo
+///   resuelve Rapier como hasta ahora.
 struct SurfaceHooks<'a> {
     track: &'a [TrackMesh],
     cars: &'a [CarMaterial],
+    objects: &'a [ObjectMaterial],
+}
+
+/// Qué es un collider, por su `user_data`.
+#[derive(Clone, Copy)]
+enum Toucher {
+    Track(usize),
+    Car(usize),
+    Object(usize),
+    Other,
+}
+
+fn toucher(collider: &Collider) -> Toucher {
+    let index = (collider.user_data & !TAG_MASK) as usize;
+    match collider.user_data & TAG_MASK {
+        TAG_TRACK => Toucher::Track(index),
+        TAG_CAR => Toucher::Car(index),
+        TAG_OBJECT => Toucher::Object(index),
+        _ => Toucher::Other,
+    }
+}
+
+impl SurfaceHooks<'_> {
+    /// Fricción y dureza de un cuerpo.
+    fn body(&self, toucher: Toucher) -> Option<(f32, f32)> {
+        match toucher {
+            Toucher::Car(i) => self
+                .cars
+                .get(i)
+                .map(|car| (car.kinetic_friction, car.hardness)),
+            Toucher::Object(i) => self
+                .objects
+                .get(i)
+                .map(|object| (object.friction, object.restitution)),
+            _ => None,
+        }
+    }
 }
 
 impl PhysicsHooks for SurfaceHooks<'_> {
@@ -387,23 +529,27 @@ impl PhysicsHooks for SurfaceHooks<'_> {
         else {
             return;
         };
-        let (track, car, tri) = if c1.user_data & TAG_MASK == TAG_TRACK && c2.user_data & TAG_MASK == TAG_CAR {
-            (c1.user_data, c2.user_data, context.manifold.subshape1)
-        } else if c2.user_data & TAG_MASK == TAG_TRACK && c1.user_data & TAG_MASK == TAG_CAR {
-            (c2.user_data, c1.user_data, context.manifold.subshape2)
-        } else {
-            return;
+        let (a, b) = (toucher(c1), toucher(c2));
+        let (mesh, body, tri) = match (a, b) {
+            (Toucher::Track(mesh), body) => (mesh, body, context.manifold.subshape1),
+            (body, Toucher::Track(mesh)) => (mesh, body, context.manifold.subshape2),
+            (Toucher::Object(_), _) | (_, Toucher::Object(_)) => {
+                if let (Some((f1, h1)), Some((f2, h2))) = (self.body(a), self.body(b)) {
+                    *context.friction = f1 * f2;
+                    *context.restitution = h1 * h2;
+                }
+                return;
+            }
+            _ => return,
         };
-        let (Some(mesh), Some(car)) = (
-            self.track.get((track & !TAG_MASK) as usize),
-            self.cars.get((car & !TAG_MASK) as usize),
-        ) else {
+        let (Some(mesh), Some((body_friction, hardness))) = (self.track.get(mesh), self.body(body))
+        else {
             return;
         };
         let surface = mesh.surfaces.get(tri as usize).copied().unwrap_or(SurfaceType::Road);
         let profile = surfaces::profile(surface);
-        let mut friction = car.kinetic_friction * profile.roughness;
-        let mut restitution = car.hardness * profile.hardness;
+        let mut friction = body_friction * profile.roughness;
+        let mut restitution = hardness * profile.hardness;
         if context.normal.y.abs() < 0.15 {
             friction *= 0.1;
             restitution += 0.1;

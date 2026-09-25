@@ -1,5 +1,5 @@
-//! Vista de manejo: la pista, los autos en el motor de Revvy (Rapier + vehículo de
-//! Revvy), la cámara de persecución (o una libre) y el sonido.
+//! Vista de manejo: la pista, los autos y los objetos en el motor de Revvy (Rapier +
+//! vehículo de Revvy), la cámara de persecución (o una libre) y el sonido.
 //!
 //! Todo en el espacio de Revvy: el contenido de Re-Volt ya llega traducido por
 //! `revvy-formats`, igual que el propio (`.glb`, `car.toml`).
@@ -9,14 +9,17 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use glam::{Mat4, Quat, Vec3};
 use revvy_formats::layout::StartSlot;
-use revvy_formats::{load_car, load_track, CarDef, TrackLoad, VisualMesh};
+use revvy_formats::{
+    load_car, load_track, CarDef, ObjectKind, ObjectSpawn, SpawnWhen, TrackLoad, TrackObjects,
+    VisualMesh,
+};
 use revvy_physics::{ChaseCamera, Controls, PhysicsWorld, VehicleSound};
 use winit::keyboard::KeyCode;
 
-use crate::audio::{Audio, Listener};
+use crate::audio::{Audio, Listener, ObjectCue, ObjectSound};
 use crate::config::ClientConfig;
 use crate::input::{DriveKeys, FlyKeys, Input};
-use crate::render::CameraView;
+use crate::render::{CameraView, MAX_OBJECTS};
 use crate::ui::HudInfo;
 
 const MOVE_SPEED: f32 = 12.0;
@@ -55,8 +58,15 @@ pub struct DriveView {
     free: FreeCamera,
     free_mode: bool,
     driven: usize,
+    /// Los primeros `players` autos son los de la sala; el resto no tiene conductor.
+    players: usize,
     audio: Audio,
     listener_pos: Vec3,
+    objects: TrackObjects,
+    /// Las apariciones con trigger y desde cuándo pueden disparar (`None`: ya disparó y
+    /// no se rearma).
+    triggers: Vec<(usize, Option<f32>)>,
+    race_time: f32,
 }
 
 struct FreeCamera {
@@ -71,9 +81,27 @@ impl DriveView {
         let level_dir = resolve_content(&content.join("levels"), &race.level);
 
         tracing::info!(pista = %level_dir.display(), "cargando pista");
-        let track = load_track(&level_dir, TrackLoad::default())?;
-        let collision = track.asset.collision.as_ref().context("la pista no trae colisión")?;
+        let mut track = load_track(&level_dir, TrackLoad::default())?;
+        let collision = track
+            .asset
+            .collision
+            .as_ref()
+            .context("la pista no trae colisión")?;
         let mut world = PhysicsWorld::new(collision);
+        let objects = std::mem::take(&mut track.asset.objects);
+        let mut triggers = Vec::new();
+        for (i, spawn) in objects.spawns.iter().enumerate() {
+            match spawn.when {
+                SpawnWhen::Start => add_object(&mut world, &objects, spawn),
+                SpawnWhen::Trigger(_) => triggers.push((i, Some(0.0))),
+            }
+        }
+        tracing::info!(
+            objetos = world.objects().len(),
+            con_trigger = triggers.len(),
+            autos_sin_conductor = objects.car_spawns.len(),
+            "objetos de la pista"
+        );
         let visual = track.asset.visual.as_ref();
 
         let mut defs: Vec<(CarDef, Vec3)> = Vec::new();
@@ -91,13 +119,25 @@ impl DriveView {
             );
             defs.push((car, pos));
         }
+        // Los autos sin conductor van después de los de la sala: Tab no llega a ellos.
+        let players = defs.len();
+        for spawn in &objects.car_spawns {
+            let index = world.add_vehicle(&objects.cars[spawn.car].vehicle, spawn.pos, spawn.yaw);
+            world.set_self_righting(index, spawn.self_righting);
+        }
 
         let (pos, rot) = world.vehicle(0).pose(1.0);
         let chase = ChaseCamera::new(pos, rot);
         let sound_cars: Vec<(&CarDef, Vec3)> = defs.iter().map(|(car, pos)| (car, *pos)).collect();
-        let audio = Audio::new(&content, &track.asset.sounds, &sound_cars, config.sfx_volume);
+        let audio = Audio::new(
+            &content,
+            &track.asset.sounds,
+            &sound_cars,
+            &objects.kinds,
+            config.sfx_volume,
+        );
         let forward = chase.forward();
-        let cars = defs
+        let mut cars: Vec<CarView> = defs
             .into_iter()
             .map(|(car, _)| {
                 let mut parts = vec![car.body];
@@ -109,6 +149,16 @@ impl DriveView {
                 }
             })
             .collect();
+        cars.extend(objects.car_spawns.iter().map(|spawn| {
+            let car = &objects.cars[spawn.car];
+            let mut parts = vec![car.body.clone()];
+            parts.extend(car.wheels.iter().cloned());
+            CarView {
+                name: car.name.clone(),
+                parts,
+                texture: car.texture.clone(),
+            }
+        }));
         Ok(Self {
             track_meshes: visual.map(|v| v.meshes.clone()).unwrap_or_default(),
             track_textures: visual.map(|v| v.textures.clone()).unwrap_or_default(),
@@ -126,7 +176,11 @@ impl DriveView {
             world,
             free_mode: false,
             driven: 0,
+            players,
             audio,
+            objects,
+            triggers,
+            race_time: 0.0,
         })
     }
 
@@ -156,6 +210,24 @@ impl DriveView {
         &self.cars
     }
 
+    /// Los tipos de objeto de la pista, para subir sus mallas.
+    pub fn object_kinds(&self) -> &[ObjectKind] {
+        &self.objects.kinds
+    }
+
+    /// Tipo y matriz de cada objeto, interpolados entre pasos.
+    pub fn object_models(&self) -> Vec<(usize, Mat4)> {
+        let alpha = self.world.alpha();
+        self.world
+            .objects()
+            .iter()
+            .map(|prop| {
+                let (pos, rot) = prop.pose(alpha);
+                (prop.kind(), Mat4::from_rotation_translation(rot, pos))
+            })
+            .collect()
+    }
+
     /// Un frame: mandos, física, cámara y sonido.
     pub fn step(&mut self, dt: f32, input: &mut Input) {
         if input.take_pressed(KeyCode::KeyC) {
@@ -169,8 +241,8 @@ impl DriveView {
                 };
             }
         }
-        if input.take_pressed(KeyCode::Tab) && self.cars.len() > 1 {
-            self.driven = (self.driven + 1) % self.cars.len();
+        if input.take_pressed(KeyCode::Tab) && self.players > 1 {
+            self.driven = (self.driven + 1) % self.players;
             let (pos, rot) = self.world.vehicle(self.driven).pose(self.world.alpha());
             self.chase = ChaseCamera::new(pos, rot);
         }
@@ -182,6 +254,8 @@ impl DriveView {
         self.world.frame(dt, &controls);
 
         let time_step = dt.clamp(0.0, MAX_FRAME);
+        self.race_time += time_step;
+        self.fire_triggers();
         let (pos, rot) = self.world.vehicle(self.driven).pose(self.world.alpha());
         self.chase.update(time_step, pos, rot, &self.world);
         if self.free_mode {
@@ -189,13 +263,69 @@ impl DriveView {
         }
 
         let listener = self.listener(time_step);
+        // Los autos sin conductor no suenan, como el chango de Re-Volt.
         let sounds: Vec<VehicleSound> = self
             .world
             .vehicles()
             .iter()
+            .take(self.players)
             .map(|vehicle| vehicle.sound(self.world.bodies()))
             .collect();
-        self.audio.update(&sounds, time_step, &listener);
+        let object_sounds = self.object_sounds();
+        self.audio
+            .update(&sounds, &object_sounds, time_step, &listener);
+    }
+
+    /// `TriggerObjectThrower`: el centro de algún auto de la sala entra en la caja y aparece
+    /// el objeto. Los autos sin conductor no disparan triggers.
+    fn fire_triggers(&mut self) {
+        let cars: Vec<Vec3> = self
+            .world
+            .vehicles()
+            .iter()
+            .take(self.players)
+            .map(|vehicle| vehicle.pose(1.0).0)
+            .collect();
+        for (spawn, ready_at) in &mut self.triggers {
+            let Some(ready) = *ready_at else { continue };
+            let spawn = &self.objects.spawns[*spawn];
+            let SpawnWhen::Trigger(zone) = &spawn.when else {
+                continue;
+            };
+            if self.race_time < ready || !cars.iter().any(|&car| zone.contains(car)) {
+                continue;
+            }
+            add_object(&mut self.world, &self.objects, spawn);
+            *ready_at = zone.rearm.map(|secs| self.race_time + secs);
+        }
+    }
+
+    /// Lo que suena de los objetos en este frame: los golpes (`AI_BangNoiseHandler`) y las
+    /// puntas de los caminos, a todo volumen en el punto de partida (`AI_SliderHandler`).
+    fn object_sounds(&mut self) -> Vec<ObjectSound> {
+        let knocks = self.world.take_knocks();
+        let cues = self.world.take_motion_cues();
+        let props = self.world.objects();
+        let impacts = knocks.into_iter().filter_map(|(i, knock)| {
+            let prop = &props[i];
+            let sound = self.objects.kinds[prop.kind()].impact_sound.as_ref()?;
+            Some(ObjectSound {
+                kind: prop.kind(),
+                cue: ObjectCue::Impact,
+                pos: prop.pose(1.0).0,
+                volume: sound.volume(knock)?,
+            })
+        });
+        let ends = cues.into_iter().filter_map(|(i, cue)| {
+            let prop = &props[i];
+            Some(ObjectSound {
+                kind: prop.kind(),
+                cue: cue.into(),
+                pos: prop.path_origin()?,
+                volume: 127,
+            })
+        });
+        impacts.chain(ends).collect()
     }
 
     /// La cámara que escucha.
@@ -241,11 +371,24 @@ impl DriveView {
         HudInfo {
             speed_mph: self.world.vehicle(self.driven).velocity(self.world.bodies()).length() * MPS_TO_MPH,
             car_name: self.cars[self.driven].name.clone(),
-            cars: self.cars.len(),
+            cars: self.players,
             free_camera: self.free_mode,
             sound: self.audio.enabled(),
         }
     }
+}
+
+/// Pone una aparición en el mundo: con su camino, o suelta con su velocidad.
+fn add_object(world: &mut PhysicsWorld, objects: &TrackObjects, spawn: &ObjectSpawn) {
+    if world.objects().len() >= MAX_OBJECTS {
+        tracing::warn!("demasiados objetos: no aparece otro");
+        return;
+    }
+    let kind = &objects.kinds[spawn.kind];
+    match spawn.motion {
+        Some(motion) => world.add_moving_object(spawn.kind, kind, spawn.pos, spawn.rot, motion),
+        None => world.add_object(spawn.kind, kind, spawn.pos, spawn.rot, spawn.velocity),
+    };
 }
 
 /// Teclas del auto: las opuestas se anulan, como `s_RationaliseControl`.

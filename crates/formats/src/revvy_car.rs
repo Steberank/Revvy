@@ -11,7 +11,7 @@
 
 use std::path::Path;
 
-use glam::{Mat4, Vec3};
+use glam::Vec3;
 use serde::Deserialize;
 
 use crate::glb::{self, GlbFile, GlbNode};
@@ -71,7 +71,7 @@ pub fn load(dir: &Path, toml_path: &Path) -> Result<CarDef, FormatError> {
             Some(path) => {
                 let file = glb::read(&path)?;
                 for node in &file.nodes {
-                    let points = node_points(node, node.world);
+                    let points = glb::node_points(node, node.world);
                     if points.is_empty() {
                         continue;
                     }
@@ -89,7 +89,7 @@ pub fn load(dir: &Path, toml_path: &Path) -> Result<CarDef, FormatError> {
                 tracing::warn!(auto = %manifest.name, "auto sin collision.glb: el casco sale del chasis visible");
                 let points: Vec<[f32; 3]> = body_nodes
                     .iter()
-                    .flat_map(|node| node_points(node, node.world))
+                    .flat_map(|node| glb::node_points(node, node.world))
                     .map(|p| (p + offset).to_array())
                     .collect();
                 vehicle.chassis.hulls.push(points);
@@ -134,13 +134,6 @@ fn car_texture(
         tracing::warn!("el auto usa más de una textura: se dibuja todo con la primera");
     }
     file.images.get(first as usize).cloned()
-}
-
-fn node_points(node: &GlbNode, matrix: Mat4) -> Vec<Vec3> {
-    node.primitives
-        .iter()
-        .flat_map(|primitive| primitive.positions.iter().map(move |&p| matrix.transform_point3(p)))
-        .collect()
 }
 
 fn bounds(points: &[Vec3]) -> (Vec3, Vec3) {

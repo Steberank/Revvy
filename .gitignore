@@ -4,3 +4,5 @@
 REVOLT/
 .deps/
 rvsource/
+.claude/
+.cargo/

@@ -1,4 +1,4 @@
-// Largada y objetos de la arena de prueba. El resto del layout llega con el editor.
+// Largada, circuito y objetos de la arena de prueba. El resto del layout llega con el editor.
 TrackLayout(
     version: 1,
     start_grid: [
@@ -6,6 +6,40 @@ TrackLayout(
         (pos: (x: -1.30, y: 0.3, z: -40.20), yaw: 0.0),
         (pos: (x: 0.00, y: 0.3, z: -41.50), yaw: 0.0),
         (pos: (x: -1.30, y: 0.3, z: -41.70), yaw: 0.0),
+    ],
+    start_node: 0,
+    total_distance: 220.0,
+    zones: [
+        TrackZone(id: 0, center: (x: 0.0, y: 3.0, z: -19.0), half_extents: (x: 8.0, y: 4.0, z: 19.0)),
+        TrackZone(id: 1, center: (x: 0.0, y: 3.0, z: 19.0), half_extents: (x: 8.0, y: 4.0, z: 19.0)),
+        TrackZone(id: 2, center: (x: -15.0, y: 3.0, z: 32.0), half_extents: (x: 23.0, y: 4.0, z: 6.0)),
+        TrackZone(id: 3, center: (x: -30.0, y: 3.0, z: -8.0), half_extents: (x: 8.0, y: 4.0, z: 46.0)),
+        TrackZone(id: 4, center: (x: -15.0, y: 3.0, z: -48.0), half_extents: (x: 23.0, y: 4.0, z: 6.0)),
+        TrackZone(id: 5, center: (x: 0.0, y: 3.0, z: -46.0), half_extents: (x: 8.0, y: 4.0, z: 8.0)),
+    ],
+    pos_nodes: [
+        PosNode(id: 0, position: (x: 0.0, y: 0.5, z: -38.0), distance: 0.0, prev: [21], next: [1]),
+        PosNode(id: 1, position: (x: 0.0, y: 0.5, z: -28.0), distance: 210.0, prev: [0], next: [2]),
+        PosNode(id: 2, position: (x: 0.0, y: 0.5, z: -18.0), distance: 200.0, prev: [1], next: [3]),
+        PosNode(id: 3, position: (x: 0.0, y: 0.5, z: -12.0), distance: 194.0, prev: [2], next: [4]),
+        PosNode(id: 4, position: (x: 0.0, y: 0.5, z: 2.0), distance: 180.0, prev: [3], next: [5]),
+        PosNode(id: 5, position: (x: 0.0, y: 0.5, z: 12.0), distance: 170.0, prev: [4], next: [6]),
+        PosNode(id: 6, position: (x: 0.0, y: 0.5, z: 18.0), distance: 164.0, prev: [5], next: [7]),
+        PosNode(id: 7, position: (x: 0.0, y: 0.5, z: 32.0), distance: 150.0, prev: [6], next: [8]),
+        PosNode(id: 8, position: (x: -10.0, y: 0.5, z: 32.0), distance: 140.0, prev: [7], next: [9]),
+        PosNode(id: 9, position: (x: -20.0, y: 0.5, z: 32.0), distance: 130.0, prev: [8], next: [10]),
+        PosNode(id: 10, position: (x: -30.0, y: 0.5, z: 32.0), distance: 120.0, prev: [9], next: [11]),
+        PosNode(id: 11, position: (x: -30.0, y: 0.5, z: 22.0), distance: 110.0, prev: [10], next: [12]),
+        PosNode(id: 12, position: (x: -30.0, y: 0.5, z: 12.0), distance: 100.0, prev: [11], next: [13]),
+        PosNode(id: 13, position: (x: -30.0, y: 0.5, z: 2.0), distance: 90.0, prev: [12], next: [14]),
+        PosNode(id: 14, position: (x: -30.0, y: 0.5, z: -8.0), distance: 80.0, prev: [13], next: [15]),
+        PosNode(id: 15, position: (x: -30.0, y: 0.5, z: -18.0), distance: 70.0, prev: [14], next: [16]),
+        PosNode(id: 16, position: (x: -30.0, y: 0.5, z: -28.0), distance: 60.0, prev: [15], next: [17]),
+        PosNode(id: 17, position: (x: -30.0, y: 0.5, z: -38.0), distance: 50.0, prev: [16], next: [18]),
+        PosNode(id: 18, position: (x: -30.0, y: 0.5, z: -48.0), distance: 40.0, prev: [17], next: [19]),
+        PosNode(id: 19, position: (x: -20.0, y: 0.5, z: -48.0), distance: 30.0, prev: [18], next: [20]),
+        PosNode(id: 20, position: (x: -10.0, y: 0.5, z: -48.0), distance: 20.0, prev: [19], next: [21]),
+        PosNode(id: 21, position: (x: 0.0, y: 0.5, z: -48.0), distance: 10.0, prev: [20], next: [0]),
     ],
     objects: [
         (object: "cono", pos: (x: 1.5, y: 0.1, z: -32.0)),

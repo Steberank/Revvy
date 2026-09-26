@@ -21,5 +21,6 @@ Objetos del nivel. Un `i32` con la cantidad y registros `FILE_OBJECT` de 56 byte
 - **Puerta corrediza** (tipo 56, `OBJECT_TYPE_SLIDER`): `models/slider.m`, que choca con `slider.ncp`. `flags[0]` es el id de la hoja. Cada hoja va y viene 400 unidades por su eje `R` (`Up × Look`) en 3 s; la de id 0, para el otro lado → objeto con camino (`ObjectMotion::Slide`). En market2 son dos.
 - **Chango** (tipo 7, `OBJECT_TYPE_TROLLEY`): el auto `cars/trolley`, sin conductor → `CarSpawn`, con el yaw de su `Look`. Hay dos en market1 y dos en market2.
 - **Cielo** (tipo 55, `SKYBOX`): prende el cielo de la carpeta del nivel, que ya carga `load_sky`.
+- **Objeto animado** (tipo 76, RVGL): `flags[0]` es el `Slot` de su animación en `custom_animations.txt`, `flags[1]` el id de su trigger, `flags[2]` la espera antes de arrancar en décimas de segundo y `flags[3]` si se ve en contrarreloj → `TrackAnimations` (`custom_animations.md`). En wildland son 19: 17 mástiles con bandera y 2 sogas con banderines.
 
 Los demás tipos (la lata, la colchoneta, las estrellas, las luces…) se leen y no se traducen, porque no están sus modelos; el log los lista.

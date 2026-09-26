@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use revvy_core::rules::GameplayRules;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -76,6 +77,16 @@ impl ClientConfig {
         } else {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join(path)
         }
+    }
+
+    /// Las reglas de sala por defecto (`config/rules/default.ron`). Si no se pueden leer,
+    /// las de fábrica.
+    pub fn rules(&self) -> GameplayRules {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../config/rules/default.ron");
+        GameplayRules::load(&path).unwrap_or_else(|err| {
+            tracing::warn!(%err, "reglas de sala: se usan las de fábrica");
+            GameplayRules::default()
+        })
     }
 
     pub fn load() -> Result<Self, ConfigError> {

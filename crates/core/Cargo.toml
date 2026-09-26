@@ -7,6 +7,8 @@ publish.workspace = true
 [dependencies]
 bevy_ecs = "0.19"
 glam.workspace = true
+revvy-formats = { path = "../formats" }
+ron.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

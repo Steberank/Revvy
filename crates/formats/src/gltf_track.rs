@@ -6,11 +6,12 @@
 
 use std::path::Path;
 
-use glam::Vec3;
+use glam::{Quat, Vec3};
 use serde::Deserialize;
 
+use crate::animations::TrackAnimations;
 use crate::glb::{self, GlbNode};
-use crate::layout::{StartSlot, TrackLayout};
+use crate::layout::{KillVolume, PosNode, StartSlot, TrackLayout, TrackZone};
 use crate::objects::TrackObjects;
 use crate::revvy_objects;
 use crate::sounds::TrackSounds;
@@ -57,15 +58,20 @@ pub fn load(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatError> 
             color_key: false,
             sky: None,
             background: None,
+            animations: TrackAnimations::default(),
         }
     });
     let collision = options.collision.then(|| Collision {
         triangles: glb::collision_triangles(&collision_nodes),
+        surfaces: Vec::new(),
     });
 
     let layout_file = read_layout(dir);
     let mut layout = TrackLayout::default();
     layout.start_grid = start_grid(layout_file.as_ref());
+    if let Some(file) = &layout_file {
+        race_layout(file, &mut layout);
+    }
     let objects = match &layout_file {
         Some(file) if options.collision => revvy_objects::load(dir, &file.objects),
         _ => TrackObjects::default(),
@@ -73,6 +79,8 @@ pub fn load(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatError> 
     tracing::info!(
         pista = manifest.name.as_deref().unwrap_or(&id),
         largada = layout.start_grid.len(),
+        zonas = layout.zones.len(),
+        pos_nodes = layout.pos_nodes.len(),
         "pista revvy-glb-v1"
     );
     Ok(LoadedTrack {
@@ -88,13 +96,24 @@ pub fn load(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatError> 
     })
 }
 
-/// Lo que se lee de `layout.ron`: la grilla y los objetos. El resto llega con el editor
-/// (fase 9).
+/// Lo que se lee de `layout.ron`: la grilla, lo que usa la carrera (zonas, POS nodes y
+/// kill volumes) y los objetos. El resto llega con el editor (fase 9).
 #[derive(Deserialize)]
 #[serde(rename = "TrackLayout")]
 struct LayoutFile {
     #[serde(default)]
     start_grid: Vec<SlotFile>,
+    #[serde(default)]
+    start_node: u32,
+    /// Largo de la vuelta (m). Si falta, se toma el `distance` más grande.
+    #[serde(default)]
+    total_distance: f32,
+    #[serde(default)]
+    zones: Vec<ZoneFile>,
+    #[serde(default)]
+    pos_nodes: Vec<PosNodeFile>,
+    #[serde(default)]
+    kill_volumes: Vec<BoxFile>,
     #[serde(default)]
     objects: Vec<revvy_objects::Placement>,
 }
@@ -103,6 +122,118 @@ struct LayoutFile {
 struct SlotFile {
     pos: V3,
     yaw: f32,
+}
+
+#[derive(Deserialize)]
+#[serde(rename = "TrackZone")]
+struct ZoneFile {
+    id: i32,
+    center: V3,
+    #[serde(default)]
+    rotation: Q4,
+    half_extents: V3,
+}
+
+#[derive(Deserialize)]
+#[serde(rename = "PosNode")]
+struct PosNodeFile {
+    id: u32,
+    position: V3,
+    /// Lo que falta hasta la meta (m): 0 en el nodo de largada.
+    distance: f32,
+    #[serde(default)]
+    prev: Vec<i32>,
+    #[serde(default)]
+    next: Vec<i32>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename = "KillVolume")]
+struct BoxFile {
+    center: V3,
+    #[serde(default)]
+    rotation: Q4,
+    half_extents: V3,
+}
+
+/// Cuaternión `(x, y, z, w)`; si falta, sin giro.
+#[derive(Deserialize)]
+struct Q4 {
+    x: f32,
+    y: f32,
+    z: f32,
+    w: f32,
+}
+
+impl Default for Q4 {
+    fn default() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 1.0,
+        }
+    }
+}
+
+impl Q4 {
+    fn quat(&self) -> Quat {
+        Quat::from_xyzw(self.x, self.y, self.z, self.w).normalize()
+    }
+}
+
+/// Zonas, POS nodes y kill volumes de `layout.ron`, con la misma semántica que `.taz`,
+/// `.pan` y los triggers de Re-Volt (§7.4). Los POS nodes van en el orden de su `id`.
+fn race_layout(file: &LayoutFile, layout: &mut TrackLayout) {
+    layout.zones = file
+        .zones
+        .iter()
+        .map(|zone| TrackZone {
+            id: zone.id,
+            center: zone.center.vec(),
+            rotation: zone.rotation.quat(),
+            half_extents: zone.half_extents.vec().abs(),
+        })
+        .collect();
+    let mut nodes: Vec<&PosNodeFile> = file.pos_nodes.iter().collect();
+    nodes.sort_by_key(|node| node.id);
+    if nodes
+        .iter()
+        .enumerate()
+        .any(|(i, node)| node.id as usize != i)
+    {
+        tracing::warn!("pos_nodes con ids salteados o repetidos: la pista no cuenta vueltas");
+        nodes.clear();
+    }
+    layout.pos_nodes = nodes
+        .iter()
+        .map(|node| PosNode {
+            id: node.id,
+            position: node.position.vec(),
+            distance: node.distance,
+            prev: node.prev.clone(),
+            next: node.next.clone(),
+        })
+        .collect();
+    layout.start_node = file.start_node;
+    layout.total_distance = if file.total_distance > 0.0 {
+        file.total_distance
+    } else {
+        layout
+            .pos_nodes
+            .iter()
+            .map(|node| node.distance)
+            .fold(0.0, f32::max)
+    };
+    layout.kill_volumes = file
+        .kill_volumes
+        .iter()
+        .map(|volume| KillVolume {
+            center: volume.center.vec(),
+            rotation: volume.rotation.quat(),
+            half_extents: volume.half_extents.vec().abs(),
+        })
+        .collect();
 }
 
 #[derive(Deserialize, Default)]

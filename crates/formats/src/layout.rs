@@ -268,6 +268,23 @@ pub struct ForceField {
     pub kind: ForceKind,
 }
 
+/// Una superficie que la pista redefine: `MATERIAL` y `CORRUGATION` de `properties.txt`
+/// en las pistas de RVGL. Lo que queda en `None` sigue como en Re-Volt.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SurfaceTuning {
+    pub surface: SurfaceType,
+    /// Multiplica la fricción (`Roughness`).
+    pub roughness: Option<f32>,
+    /// Multiplica el agarre lateral de las ruedas (`Grip`).
+    pub grip: Option<f32>,
+    /// Multiplica el rebote del chasis (`Hardness`).
+    pub hardness: Option<f32>,
+    /// Baches: amplitud y largos de onda en X y Z (m). `Some(None)`: sin baches.
+    pub corrugation: Option<Option<[f32; 3]>>,
+    /// Cinta transportadora (m/s, ejes de Revvy). `Some(Vec3::ZERO)`: no mueve.
+    pub conveyor: Option<Vec3>,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct SurfaceEffect {
     pub friction: f32,

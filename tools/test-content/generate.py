@@ -4,7 +4,8 @@
 Genera, relativo a la raíz del repo:
 
 - content/cars/revvy_buggy/: car.toml, body.glb y collision.glb.
-- content/levels/revvy_arena/: track.toml, visual.glb y layout.ron, y los objetos propios
+- content/levels/revvy_arena/: track.toml, visual.glb y layout.ron (largada, circuito con
+  zonas y POS nodes, objetos), y los objetos propios
   en objects/<nombre>/: object.toml, model.glb y sonidos sintéticos (golpe, o abrir y
   cerrar), o un auto sin conductor con car.toml, body.glb y collision.glb.
 
@@ -410,9 +411,66 @@ def arena():
     )
     objects()
     (folder / "layout.ron").write_text(
-        "// Largada y objetos de la arena de prueba. El resto del layout llega con el editor.\n"
+        "// Largada, circuito y objetos de la arena de prueba. El resto del layout llega con el editor.\n"
         "TrackLayout(\n    version: 1,\n    start_grid: [\n" + slots + "\n    ],\n"
-        + LAYOUT_OBJECTS + ")\n"
+        + course() + LAYOUT_OBJECTS + ")\n"
+    )
+
+
+# El circuito de la arena, en el sentido de la carrera: sale de la meta (z = -38) hacia +Z
+# por el slalom, las puertas y la rampa, dobla hacia -X, baja por el pasto y la tierra,
+# vuelve por z = -48 y entra a la recta de largada.
+COURSE = [(0.0, -38.0), (0.0, 32.0), (-30.0, 32.0), (-30.0, -48.0), (0.0, -48.0), (0.0, -38.0)]
+# Una zona por tramo (x0, z0, x1, z1), en orden desde la meta; la largada queda en la última.
+COURSE_ZONES = [
+    (-8.0, -38.0, 8.0, 0.0),
+    (-8.0, 0.0, 8.0, 38.0),
+    (-38.0, 26.0, 8.0, 38.0),
+    (-38.0, -54.0, -22.0, 38.0),
+    (-38.0, -54.0, 8.0, -42.0),
+    (-8.0, -54.0, 8.0, -38.0),
+]
+POS_NODE_STEP = 10.0
+# Tramos del circuito (metros desde la meta) donde un auto no debe reaparecer: las puertas
+# (z = -8) y la rampa (z de 20 a 26). Un nodo que cae ahí se corre a antes del obstáculo.
+NO_RESPAWN = [(27.0, 33.0), (57.0, 65.0)]
+
+
+def course():
+    """Zonas y POS nodes: cada nodo dice cuánto falta hasta la meta siguiendo la carrera."""
+    segments = list(zip(COURSE, COURSE[1:]))
+    total = sum(math.dist(a, b) for a, b in segments)
+    zones = "\n".join(
+        f"        TrackZone(id: {i}, center: (x: {(x0 + x1) / 2:.1f}, y: 3.0, z: {(z0 + z1) / 2:.1f}),"
+        f" half_extents: (x: {(x1 - x0) / 2:.1f}, y: 4.0, z: {(z1 - z0) / 2:.1f})),"
+        for i, (x0, z0, x1, z1) in enumerate(COURSE_ZONES)
+    )
+    arcs = []
+    for k in range(math.ceil(total / POS_NODE_STEP)):
+        s = k * POS_NODE_STEP
+        for lo, hi in NO_RESPAWN:
+            if lo <= s <= hi:
+                s = lo - 1.0
+        arcs.append(s)
+    points = []
+    for s in arcs:
+        walked = s
+        for a, b in segments:
+            length = math.dist(a, b)
+            if walked <= length:
+                t = walked / length
+                points.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, s))
+                break
+            walked -= length
+    count = len(points)
+    nodes = "\n".join(
+        f"        PosNode(id: {i}, position: (x: {x:.1f}, y: 0.5, z: {z:.1f}),"
+        f" distance: {0.0 if i == 0 else total - s:.1f}, prev: [{(i - 1) % count}], next: [{(i + 1) % count}]),"
+        for i, (x, z, s) in enumerate(points)
+    )
+    return (
+        f"    start_node: 0,\n    total_distance: {total:.1f},\n"
+        f"    zones: [\n{zones}\n    ],\n    pos_nodes: [\n{nodes}\n    ],\n"
     )
 
 

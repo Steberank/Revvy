@@ -246,7 +246,15 @@ fn find_prm(dir: &Path, name: &str) -> Option<std::path::PathBuf> {
     find_sidecar(dir, name, "prm")
 }
 
+/// El modelo o la colisión de una instancia: primero en `custom/`, donde RVGL deja
+/// reemplazar `.prm` y `.ncp`, y después en la carpeta del nivel.
 fn find_sidecar(dir: &Path, name: &str, extension: &str) -> Option<std::path::PathBuf> {
+    crate::custom_dir(dir)
+        .and_then(|custom| search_sidecar(&custom, name, extension))
+        .or_else(|| search_sidecar(dir, name, extension))
+}
+
+fn search_sidecar(dir: &Path, name: &str, extension: &str) -> Option<std::path::PathBuf> {
     let entries = std::fs::read_dir(dir).ok()?;
     let mut prefix_match = None;
     for entry in entries.flatten() {

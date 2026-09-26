@@ -134,7 +134,7 @@ impl TrackEntry {
     }
 }
 
-/// Configuración de sala. Todavía no cambia la carrera.
+/// Configuración de sala. De esto, la carrera ya usa las vueltas.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RoomSettings {
     pub bots: bool,
@@ -181,10 +181,11 @@ pub enum Target {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MenuAction {
     Quit,
-    /// La pista y los autos de los jugadores conectados, en orden.
+    /// La pista, los jugadores conectados en orden (nombre y auto) y las vueltas de la sala.
     StartRace {
         track: String,
-        cars: Vec<String>,
+        players: Vec<(String, String)>,
+        laps: u32,
     },
 }
 
@@ -495,14 +496,18 @@ impl MenuState {
             return None;
         }
         let track = self.tracks[self.selected_track?].id.clone();
-        let cars = self
+        let players = self
             .players
             .iter()
             .filter(|player| player.device.is_some())
-            .map(|player| player.car_id.clone())
+            .map(|player| (player.name.clone(), player.car_id.clone()))
             .collect();
         self.loading = true;
-        Some(MenuAction::StartRace { track, cars })
+        Some(MenuAction::StartRace {
+            track,
+            players,
+            laps: self.settings.laps,
+        })
     }
 }
 
@@ -605,7 +610,8 @@ mod tests {
         let action = press(&mut menu, &[Command::Down, Command::Accept]);
         let expected = MenuAction::StartRace {
             track: "nhood1".into(),
-            cars: vec!["phim_calcure".into()],
+            players: vec![("Jugador 1".into(), "phim_calcure".into())],
+            laps: 3,
         };
         assert_eq!(action, Some(expected));
         assert!(menu.loading);

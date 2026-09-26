@@ -1,0 +1,175 @@
+MATERIAL {
+  ID              18                            ; Material to replace [0 - 26]
+  Name            "DIRT"                      ; Display name
+
+  Skid            true                          ; Skidmarks appear on material
+  Spark           true                          ; Material emits particles
+  OutOfBounds     false                         ; Not implemented
+  Corrugated      true                          ; Material is bumpy
+  Moves           false                         ; Moves like museum conveyors
+  Dusty           true                          ; Material emits dust
+
+  Roughness       0.730000                      ; Roughness of the material
+  Grip            0.342500                      ; Grip of the material
+  Hardness        0.200000                      ; Hardness of the material
+
+  DefaultSound    100                          ; Sound when not skidding
+  SkidSound       100                            ; Sound when skidding
+  ScrapeSound     5                             ; Car body scrape [5:Normal]
+
+  SkidColor       196 192 188                      ; Color of the skidmarks
+  CorrugationType 2                             ; Type of bumpiness [0 - 7]
+  DustType        4                             ; Type of dust
+  Velocity        0.000000 0.000000 0.000000    ; Move cars
+}
+
+DUST {
+  ID              4                             ; Dust to replace [0 - 5]
+  Name            "DIRT-DUST"                      ; Display name
+
+  SparkType       4                             ; Particle to emit [0 - 30]
+  ParticleChance  2.390000                      ; Probability of a particle
+  ParticleRandom  2.230000                      ; Probability variance
+           
+  SmokeType       26                           ; Smoke particle to emit [0-30]
+  SmokeChance     1.410100                      ; Probability of a smoke part.
+  SmokeRandom     2.020000                      ; Probability variance
+}
+
+SPARK {
+  ID              26                            ; Particle to replace [0 - 30]
+  Name            "DIRT-SPARK"                  ; Display name
+  Grows           true                          ; Particle grows
+  Color           31 19 15                      ;
+  LifeTime        1.135000                      ; Maximum life time
+  LifeTimeVar     1.732000                      ; Life time variance
+}
+SPARK {
+  ID              4                             ; Particle to replace [0 - 30]
+  Name            "DIRT-CLOUD"                  ; Display name
+
+  CollideWorld    true                          ; Collision with the world
+  CollideObject   true                          ; Collision with objects
+  CollideCam      true                          ; Collision with camera
+  HasTrail        false                         ; Particle has a trail
+  FieldAffect     true                          ; Is affected by force fields
+  Spins           false                         ; Particle spins
+  Grows           false                         ; Particle grows
+  Additive        true                          ; Draw particle additively
+  Horizontal      false                         ; Draw particle flat
+
+  Size            1.477300 1.477300             ; Size of the particle
+  UV              0.937500 0.000000             ; Top left UV coordinates
+  UVSize          0.062500 0.062500             ; Width and height of UV
+  TexturePage     47                            ; Texture page
+  Color           56 19 7                      ; Color of the particle
+
+  Mass            0.100000                      ; Mass of the particle
+  Resistance      0.020000                      ; Air resistance
+  Friction        0.100000                      ; Sliding friction
+  Restitution     0.500000                      ; Bounciness
+
+  LifeTime        1.670000                      ; Maximum life time
+  LifeTimeVar     0.050000                      ; Life time variance
+
+  SpinRate        0.000000                      ; Avg. spin rate (radians/sec)
+  SpinRateVar     0.000000                      ; Variation of the spin rate
+
+  SizeVar         0.000000                      ; Size variation
+  GrowRate        0.000000                      ; How quickly it grows
+  GrowRateVar     0.000000                      ; Grow variation
+
+  TrailType       1                             ; ID of the trail to use
+}
+
+
+MATERIAL {
+  ID              4                             ; Material to replace [0 - 26]
+  Name            "SAND"                        ; Display name
+
+  Skid            true                         ; Skidmarks appear on material
+  Spark           false                         ; Material emits particles
+  OutOfBounds     false                         ; Not implemented
+  Corrugated      false                         ; Material is bumpy
+  Moves           false                         ; Moves like museum conveyors
+  Dusty           true                          ; Material emits dust
+
+  Roughness       1.000000                      ; Roughness of the material
+  Grip            0.800000                      ; Grip of the material
+  Hardness        0.000000                      ; Hardness of the material
+
+  DefaultSound    100                            ; Sound when not skidding
+  SkidSound       101                           ; Sound when skidding
+  ScrapeSound     5                             ; Car body scrape [5:Normal]
+
+  SkidColor      229 229 229                    ; Color of the skidmarks
+  CorrugationType 0                             ; Type of bumpiness [0 - 7]
+  DustType        2                             ; Type of dust
+  Velocity        0.000000 0.000000 0.000000    ; Move cars
+}
+
+
+ DUST {
+  ID              2                             ; Dust to replace [0 - 5]
+  Name            "SAND-DUST"                      ; Display name
+
+  SparkType       5                             ; Particle to emit [0 - 30]
+  ParticleChance  2.390000                      ; Probability of a particle
+  ParticleRandom  2.230000                      ; Probability variance
+           
+  SmokeType       30                           ; Smoke particle to emit [0-30]
+  SmokeChance     1.410100                      ; Probability of a smoke part.
+  SmokeRandom     2.020000                      ; Probability variance
+}
+
+SPARK {
+  ID              30                            ; Particle to replace [0 - 30]
+  Name            "SAND-SPARK"                  ; Display name
+  Grows           true                          ; Particle grows
+  Color           37 36 29                      ;
+  LifeTime        1.135000                      ; Maximum life time
+  LifeTimeVar     1.732000                      ; Life time variance
+}
+SPARK {
+  ID              5                             ; Particle to replace [0 - 30]
+  Name            "SAND-CLOUD"                  ; Display name
+
+  CollideWorld    true                          ; Collision with the world
+  CollideObject   true                          ; Collision with objects
+  CollideCam      true                          ; Collision with camera
+  HasTrail        false                         ; Particle has a trail
+  FieldAffect     true                          ; Is affected by force fields
+  Spins           false                         ; Particle spins
+  Grows           false                         ; Particle grows
+  Additive        true                          ; Draw particle additively
+  Horizontal      false                         ; Draw particle flat
+
+  Size            0.377300 0.377300             ; Size of the particle
+  UV              0.937500 0.000000             ; Top left UV coordinates
+  UVSize          0.062500 0.062500             ; Width and height of UV
+  TexturePage     47                            ; Texture page
+  Color           165 155 122                   ; Color of the particle
+
+  Mass            0.100000                      ; Mass of the particle
+  Resistance      0.020000                      ; Air resistance
+  Friction        0.100000                      ; Sliding friction
+  Restitution     0.500000                      ; Bounciness
+
+  LifeTime        2.670000                      ; Maximum life time
+  LifeTimeVar     0.050000                      ; Life time variance
+
+  SpinRate        0.000000                      ; Avg. spin rate (radians/sec)
+  SpinRateVar     0.000000                      ; Variation of the spin rate
+
+  SizeVar         0.000000                      ; Size variation
+  GrowRate        0.000000                      ; How quickly it grows
+  GrowRateVar     0.000000                      ; Grow variation
+
+  TrailType       1                             ; ID of the trail to use
+}
+
+WIND {
+  Priority        1                             ; Wind priority [0 - 2]
+  TimeMin         5                             ; Min update rate
+  TimeMax         30                            ; Max update rate
+}

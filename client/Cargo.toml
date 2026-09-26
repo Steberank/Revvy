@@ -21,6 +21,7 @@ glam.workspace = true
 image = { version = "0.25", default-features = false, features = ["bmp"] }
 kira = { version = "0.12", default-features = false, features = ["cpal", "wav", "pcm"] }
 pollster = "0.4"
+revvy-core = { path = "../crates/core" }
 revvy-physics = { path = "../crates/physics" }
 serde.workspace = true
 thiserror.workspace = true

@@ -1,0 +1,2662 @@
+; ANIMATED BY JAVILDESIGN
+
+; MODELS:
+
+MODEL   0   "pole_1"
+MODEL   1   "revolt_0-1" ; slot 0 REVOLT
+MODEL   2   "revolt_0-2"
+MODEL   3   "revolt_0-3"
+MODEL   4   "revolt_0-4"
+MODEL   5   "revolt_1-1" ; slot 1 REVOLT RACING
+MODEL   6   "revolt_1-2"
+MODEL   7   "revolt_1-3"
+MODEL   8   "revolt_1-4"
+MODEL   9    "revolt_2-1" ; slot 2 BLUE FLAG
+MODEL   10   "revolt_2-2"
+MODEL   11   "revolt_2-3"
+MODEL   12   "revolt_2-4"
+MODEL   13   "revolt_3-1" ; slot 3 LOGO
+MODEL   14   "revolt_3-2"
+MODEL   15   "revolt_3-3"
+MODEL   16   "revolt_3-4"
+MODEL   17   "revolt_4-1" ; slot 4 CHECKERED FLAG
+MODEL   18   "revolt_4-2"
+MODEL   19   "revolt_4-3"
+MODEL   20   "revolt_4-4"
+MODEL   21   "revolt_5-1" ; slot 5 MAXIM
+MODEL   22   "revolt_5-2"
+MODEL   23   "revolt_5-3"
+MODEL   24   "revolt_5-4"
+MODEL   25   "revolt_6-1" ; slot 6 CUSTOM 1
+MODEL   26   "revolt_6-2"
+MODEL   27   "revolt_6-3"
+MODEL   28   "revolt_6-4"
+MODEL   29   "revolt_7-1" ; slot 7 CUSTOM 2
+MODEL   30   "revolt_7-2"
+MODEL   31   "revolt_7-3"
+MODEL   32   "revolt_7-4"
+MODEL   33   "revolt_8-1" ; slot 8 IO
+MODEL   34   "revolt_8-2"
+MODEL   35   "revolt_8-3"
+MODEL   36   "revolt_8-4"
+MODEL   37   "revolt_9-1" ; slot 9 OIL
+MODEL   38   "revolt_9-2"
+MODEL   39   "revolt_9-3"
+MODEL   40   "revolt_9-4"
+MODEL   41   "revolt_10-1" ; slot 10 EXO
+MODEL   42   "revolt_10-2"
+MODEL   43   "revolt_10-3"
+MODEL   44   "revolt_10-4"
+MODEL   45   "revolt_11-1" ; slot 11 POZ CUSTOM 3
+MODEL   46   "revolt_11-2"
+MODEL   47   "revolt_11-3"
+MODEL   48   "revolt_11-4"
+MODEL   49   "revolt_12-1" ; slot 12 ADEON
+MODEL   50   "revolt_12-2"
+MODEL   51   "revolt_12-3"
+MODEL   52   "revolt_12-4"
+MODEL   53   "flag_1" ; FLAG R
+MODEL   54   "flag_2" ; FLAG E
+MODEL   55   "flag_3" ; FLAG V
+MODEL   56   "flag_4" ; FLAG O
+MODEL   57   "flag_5" ; FLAG L
+MODEL   58   "flag_6" ; FLAG T
+MODEL   59   "flag_7" ; EMPTY FLAG
+MODEL   60   "rope_1" ; LINE
+
+
+
+; BEGIN FLAG ANIMATION -----------------------------------------------------------------------------------> BEGIN
+
+ANIMATION {
+  Slot                      0
+  Name                      "flag01" ; WIND TYPE 1 (USED BY SLOT 0,5,6)
+  Mode                      2
+BONE {
+    BoneID                  0
+    ModelID                 0
+  }
+  BONE {
+    BoneID                  1
+    ModelID                 1 ; <----------------------------
+    Parent                  0
+    OffsetTranslation       0.000 -430.000 0.000
+  }
+  BONE {
+    BoneID                  2
+    ModelID                 2 ; <----------------------------
+    Parent                  1
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  3
+    ModelID                 3 ; <----------------------------
+    Parent                  2
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  4
+    ModelID                 4 ; <----------------------------
+    Parent                  3
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  KEYFRAME {
+    FrameNr                 0
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        3.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 1
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 2
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 3
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 4
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+  }
+} ; END FLAG ANIMATION --------------------------------------
+
+; BEGIN FLAG ANIMATION --------------------------------------
+
+ANIMATION {
+  Slot                      1
+  Name                      "flag02" ; WIND TYPE 2 (USED BY SLOT 1,7,11,12)
+  Mode                      2
+BONE {
+    BoneID                  0
+    ModelID                 0
+  }
+  BONE {
+    BoneID                  1
+    ModelID                 5 ; <----------------------------
+    Parent                  0
+    OffsetTranslation       0.000 -430.000 0.000
+  }
+  BONE {
+    BoneID                  2
+    ModelID                 6 ; <----------------------------
+    Parent                  1
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  3
+    ModelID                 7 ; <----------------------------
+    Parent                  2
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  4
+    ModelID                 8 ; <----------------------------
+    Parent                  3
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  KEYFRAME {
+    FrameNr                 0
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 1
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        3.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 2
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 3
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 4
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+  }
+} ; END FLAG ANIMATION --------------------------------------
+
+; BEGIN FLAG ANIMATION --------------------------------------
+
+ANIMATION {
+  Slot                      2
+  Name                      "flag03" ; WIND TYPE 3 (USED BY SLOT 2, 8)
+  Mode                      2
+BONE {
+    BoneID                  0
+    ModelID                 0
+  }
+  BONE {
+    BoneID                  1
+    ModelID                 9 ; <----------------------------
+    Parent                  0
+    OffsetTranslation       0.000 -430.000 0.000
+  }
+  BONE {
+    BoneID                  2
+    ModelID                 10 ; <----------------------------
+    Parent                  1
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  3
+    ModelID                 11 ; <----------------------------
+    Parent                  2
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  4
+    ModelID                 12 ; <----------------------------
+    Parent                  3
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  KEYFRAME {
+    FrameNr                 0
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 1
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 2
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        3.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 3
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 4
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        30.000
+    }
+  }
+} ; END FLAG ANIMATION --------------------------------------
+
+; BEGIN FLAG ANIMATION --------------------------------------
+
+ANIMATION {
+  Slot                      3
+  Name                      "flag04" ; WIND TYPE 4 (USED BY SLOT 3, )
+  Mode                      2
+BONE {
+    BoneID                  0
+    ModelID                 0
+  }
+  BONE {
+    BoneID                  1
+    ModelID                 13 ; <----------------------------
+    Parent                  0
+    OffsetTranslation       0.000 -430.000 0.000
+  }
+  BONE {
+    BoneID                  2
+    ModelID                 14 ; <----------------------------
+    Parent                  1
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  3
+    ModelID                 15 ; <----------------------------
+    Parent                  2
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  4
+    ModelID                 16 ; <----------------------------
+    Parent                  3
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  KEYFRAME {
+    FrameNr                 0
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 1
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 2
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 3
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        3.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 4
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -30.000
+    }
+  }
+} ; END FLAG ANIMATION --------------------------------------
+
+; BEGIN FLAG ANIMATION --------------------------------------
+
+ANIMATION {
+  Slot                      4
+  Name                      "flag05" ; WIND TYPE 5 (USED BY SLOT 4, 10)
+  Mode                      2
+BONE {
+    BoneID                  0
+    ModelID                 0
+  }
+  BONE {
+    BoneID                  1
+    ModelID                 17 ; <----------------------------
+    Parent                  0
+    OffsetTranslation       0.000 -430.000 0.000
+  }
+  BONE {
+    BoneID                  2
+    ModelID                 18 ; <----------------------------
+    Parent                  1
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  3
+    ModelID                 19 ; <----------------------------
+    Parent                  2
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  4
+    ModelID                 20 ; <----------------------------
+    Parent                  3
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  KEYFRAME {
+    FrameNr                 0
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 1
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 2
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 3
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 4
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        2.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        3.000
+    }
+  }
+} ; END FLAG ANIMATION --------------------------------------
+
+; BEGIN FLAG ANIMATION --------------------------------------
+
+ANIMATION {
+  Slot                      5
+  Name                      "flag06" ; WIND TYPE 1 (USED BY SLOT 0,5,6)
+  Mode                      2
+BONE {
+    BoneID                  0
+    ModelID                 0
+  }
+  BONE {
+    BoneID                  1
+    ModelID                 21 ; <----------------------------
+    Parent                  0
+    OffsetTranslation       0.000 -430.000 0.000
+  }
+  BONE {
+    BoneID                  2
+    ModelID                 22 ; <----------------------------
+    Parent                  1
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  3
+    ModelID                 23 ; <----------------------------
+    Parent                  2
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  4
+    ModelID                 24 ; <----------------------------
+    Parent                  3
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  KEYFRAME {
+    FrameNr                 0
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        3.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 1
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 2
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 3
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 4
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+  }
+} ; END FLAG ANIMATION --------------------------------------
+
+; BEGIN FLAG ANIMATION --------------------------------------
+
+ANIMATION {
+  Slot                      6
+  Name                      "flag07" ; WIND TYPE 1 (USED BY SLOT 0,5,6)
+  Mode                      2
+BONE {
+    BoneID                  0
+    ModelID                 0
+  }
+  BONE {
+    BoneID                  1
+    ModelID                 25 ; <----------------------------
+    Parent                  0
+    OffsetTranslation       0.000 -430.000 0.000
+  }
+  BONE {
+    BoneID                  2
+    ModelID                 26 ; <----------------------------
+    Parent                  1
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  3
+    ModelID                 27 ; <----------------------------
+    Parent                  2
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  4
+    ModelID                 28 ; <----------------------------
+    Parent                  3
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  KEYFRAME {
+    FrameNr                 0
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        3.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 1
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 2
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 3
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 4
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+  }
+} ; END FLAG ANIMATION --------------------------------------
+
+; BEGIN FLAG ANIMATION --------------------------------------
+
+ANIMATION {
+  Slot                      7
+  Name                      "flag08" ; WIND TYPE 2 (USED BY SLOT 1,7,11,12)
+  Mode                      2
+BONE {
+    BoneID                  0
+    ModelID                 0
+  }
+  BONE {
+    BoneID                  1
+    ModelID                 29 ; <----------------------------
+    Parent                  0
+    OffsetTranslation       0.000 -430.000 0.000
+  }
+  BONE {
+    BoneID                  2
+    ModelID                 30 ; <----------------------------
+    Parent                  1
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  3
+    ModelID                 31 ; <----------------------------
+    Parent                  2
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  4
+    ModelID                 32 ; <----------------------------
+    Parent                  3
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  KEYFRAME {
+    FrameNr                 0
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        3.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 1
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 2
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 3
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 4
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+  }
+} ; END FLAG ANIMATION --------------------------------------
+
+
+; BEGIN FLAG ANIMATION --------------------------------------
+
+ANIMATION {
+  Slot                      8
+  Name                      "flag09" ; WIND TYPE 3 (USED BY SLOT 2, 8)
+  Mode                      2
+BONE {
+    BoneID                  0
+    ModelID                 0
+  }
+  BONE {
+    BoneID                  1
+    ModelID                 33 ; <----------------------------
+    Parent                  0
+    OffsetTranslation       0.000 -430.000 0.000
+  }
+  BONE {
+    BoneID                  2
+    ModelID                 34 ; <----------------------------
+    Parent                  1
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  3
+    ModelID                 35 ; <----------------------------
+    Parent                  2
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  4
+    ModelID                 36 ; <----------------------------
+    Parent                  3
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  KEYFRAME {
+    FrameNr                 0
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 1
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 2
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        3.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 3
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 4
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        30.000
+    }
+  }
+} ; END FLAG ANIMATION --------------------------------------
+
+; BEGIN FLAG ANIMATION --------------------------------------
+
+ANIMATION {
+  Slot                      9
+  Name                      "flag10" ; WIND TYPE 4 (USED BY SLOT 3,9)
+  Mode                      2
+BONE {
+    BoneID                  0
+    ModelID                 0
+  }
+  BONE {
+    BoneID                  1
+    ModelID                 37 ; <----------------------------
+    Parent                  0
+    OffsetTranslation       0.000 -430.000 0.000
+  }
+  BONE {
+    BoneID                  2
+    ModelID                 38 ; <----------------------------
+    Parent                  1
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  3
+    ModelID                 39 ; <----------------------------
+    Parent                  2
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  4
+    ModelID                 40 ; <----------------------------
+    Parent                  3
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  KEYFRAME {
+    FrameNr                 0
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 1
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 2
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 3
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        3.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 4
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -30.000
+    }
+  }
+} ; END FLAG ANIMATION --------------------------------------
+
+; BEGIN FLAG ANIMATION --------------------------------------
+
+ANIMATION {
+  Slot                      10
+  Name                      "flag11" ; WIND TYPE 5 (USED BY SLOT 4, 10)
+  Mode                      2
+BONE {
+    BoneID                  0
+    ModelID                 0
+  }
+  BONE {
+    BoneID                  1
+    ModelID                 41 ; <----------------------------
+    Parent                  0
+    OffsetTranslation       0.000 -430.000 0.000
+  }
+  BONE {
+    BoneID                  2
+    ModelID                 42 ; <----------------------------
+    Parent                  1
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  3
+    ModelID                 43 ; <----------------------------
+    Parent                  2
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  4
+    ModelID                 44 ; <----------------------------
+    Parent                  3
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  KEYFRAME {
+    FrameNr                 0
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 1
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 2
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 3
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 4
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        2.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        3.000
+    }
+  }
+} ; END FLAG ANIMATION --------------------------------------
+
+; BEGIN FLAG ANIMATION --------------------------------------
+
+ANIMATION {
+  Slot                      11
+  Name                      "flag12" ; WIND TYPE 2 (USED BY SLOT 1,7,11,12)
+  Mode                      2
+BONE {
+    BoneID                  0
+    ModelID                 0
+  }
+  BONE {
+    BoneID                  1
+    ModelID                 45 ; <----------------------------
+    Parent                  0
+    OffsetTranslation       0.000 -430.000 0.000
+  }
+  BONE {
+    BoneID                  2
+    ModelID                 46 ; <----------------------------
+    Parent                  1
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  3
+    ModelID                 47 ; <----------------------------
+    Parent                  2
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  4
+    ModelID                 48 ; <----------------------------
+    Parent                  3
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  KEYFRAME {
+    FrameNr                 0
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 1
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        3.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 2
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 3
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 4
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+  }
+} ; END
+
+; BEGIN FLAG ANIMATION --------------------------------------
+
+ANIMATION {
+  Slot                      12
+  Name                      "flag13" ; WIND TYPE 2 (USED BY SLOT 1,7,11,12)
+  Mode                      2
+BONE {
+    BoneID                  0
+    ModelID                 0
+  }
+  BONE {
+    BoneID                  1
+    ModelID                 49 ; <----------------------------
+    Parent                  0
+    OffsetTranslation       0.000 -430.000 0.000
+  }
+  BONE {
+    BoneID                  2
+    ModelID                 50 ; <----------------------------
+    Parent                  1
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  3
+    ModelID                 51 ; <----------------------------
+    Parent                  2
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  BONE {
+    BoneID                  4
+    ModelID                 52 ; <----------------------------
+    Parent                  3
+    OffsetTranslation       0.000 0.000 41.670
+  }
+  KEYFRAME {
+    FrameNr                 0
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        15.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 1
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        3.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 2
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 3
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        30.000
+    }
+}
+  KEYFRAME {
+    FrameNr                 4
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 1.000 0.000
+      RotationAmount        -10.000
+    }
+  }
+} ; END FLAG ANIMATION ------------------------------------------------------------------------------------> END
+
+
+; BEGIN FLAG ON WIRE ANIMATION ----------------------------------------------------------------------------> BEGIN
+
+ANIMATION {
+  Slot                      20
+  Name                      "rope"
+  Mode                      0
+
+  BONE {
+    BoneID                  0
+    ModelID                 60
+  }
+  BONE {
+    BoneID                  1
+    ModelID                 59
+    Parent                  0
+    OffsetTranslation       0.000 1.000 20.000
+    OffsetRotationAxis      1.000 0.000 0.000
+    OffsetRotationAmount    8.600
+  }
+  BONE {
+    BoneID                  2
+    ModelID                 59
+    Parent                  0
+    OffsetTranslation       0.000 32.000 173.000
+    OffsetRotationAxis      1.000 0.000 0.000
+    OffsetRotationAmount    8.600
+  }
+  BONE {
+    BoneID                  3
+    ModelID                 58
+    Parent                  0
+    OffsetTranslation       0.000 57.000 337.000
+    OffsetRotationAxis      1.000 0.000 0.000
+    OffsetRotationAmount    8.600
+  }
+  BONE {
+    BoneID                  4
+    ModelID                 57
+    Parent                  0
+    OffsetTranslation       0.000 75.500 498.000
+    OffsetRotationAxis      1.000 0.000 0.000
+    OffsetRotationAmount    4.500
+  }
+  BONE {
+    BoneID                  5
+    ModelID                 56
+    Parent                  0
+    OffsetTranslation       0.000 87.500 662.000
+    OffsetRotationAxis      1.000 0.000 0.000
+    OffsetRotationAmount    4.500
+  }
+  BONE {
+    BoneID                  6
+    ModelID                 55
+    Parent                  0
+    OffsetTranslation       0.000 92.400 825.000
+    OffsetRotationAxis      1.000 0.000 0.000
+    OffsetRotationAmount    -4.500
+  }
+  BONE {
+    BoneID                 7
+    ModelID                 54
+    Parent                  0
+    OffsetTranslation       0.000 79.700 988.000
+    OffsetRotationAxis      1.000 0.000 0.000
+    OffsetRotationAmount    -4.500
+  }
+  BONE {
+    BoneID                  8
+    ModelID                 53
+    Parent                  0
+    OffsetTranslation       0.000 67.700 1151.000
+    OffsetRotationAxis      1.000 0.000 0.000
+    OffsetRotationAmount    -4.500
+  }
+  BONE {
+    BoneID                  9
+    ModelID                 59
+    Parent                  0
+    OffsetTranslation       0.000 43.700 1314.000
+    OffsetRotationAxis      1.000 0.000 0.000
+    OffsetRotationAmount    -8.600
+  }
+  BONE {
+    BoneID                  10
+    ModelID                 59
+    Parent                  0
+    OffsetTranslation       0.000 16.700 1477.000
+    OffsetRotationAxis      1.000 0.000 0.000
+    OffsetRotationAmount    -8.600
+  }
+
+
+  KEYFRAME {
+    FrameNr                 0
+    Time                    0.500
+    Type                    2
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        9.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        5.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                5
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        40.000
+    }
+    BONE {
+      BoneID                6
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        25.000
+    }
+    BONE {
+      BoneID                7
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        40.000
+    }
+    BONE {
+      BoneID                8
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        30.000
+    }
+    BONE {
+      BoneID                9
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        6.000
+    }
+    BONE {
+      BoneID                10
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        10.000
+    }
+  }
+
+  KEYFRAME {
+    FrameNr                 1
+    Time                    1.500
+    Type                    2
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -5.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -12.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -15.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                5
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -40.000
+    }
+    BONE {
+      BoneID                6
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                7
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -25.000
+    }
+    BONE {
+      BoneID                8
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -15.000
+    }
+    BONE {
+      BoneID                9
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -5.000
+    }
+    BONE {
+      BoneID                10
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -9.000
+    }
+  }
+
+  KEYFRAME {
+    FrameNr                 2
+    Time                    0.500
+    Type                    3
+    BONE {
+      BoneID                0
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        2.000
+    }
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        9.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        3.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                5
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        30.000
+    }
+    BONE {
+      BoneID                6
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        45.000
+    }
+    BONE {
+      BoneID                7
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                8
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        30.000
+    }
+    BONE {
+      BoneID                9
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        5.000
+    }
+    BONE {
+      BoneID                10
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        9.000
+    }
+  }
+
+  KEYFRAME {
+    FrameNr                 3
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                0
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -2.000
+    }
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -15.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -10.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -25.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                5
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -30.000
+    }
+    BONE {
+      BoneID                6
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -20.000
+    }
+    BONE {
+      BoneID                7
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -30.000
+    }
+    BONE {
+      BoneID                8
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -30.000
+    }
+    BONE {
+      BoneID                9
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -17.000
+    }
+    BONE {
+      BoneID                10
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -3.000
+    }
+  }
+
+  KEYFRAME {
+    FrameNr                 4
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        5.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        20.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                5
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        35.000
+    }
+    BONE {
+      BoneID                6
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                7
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        25.000
+    }
+    BONE {
+      BoneID                8
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                9
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                10
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        4.000
+    }
+
+
+  }
+  KEYFRAME {
+    FrameNr                 5
+    Time                    1.000
+    Type                    3
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -18.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -4.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -5.000
+    }aa
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -15.000
+    }
+    BONE {
+      BoneID                5
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -50.000
+    }
+    BONE {
+      BoneID                6
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -60.000
+    }
+    BONE {
+      BoneID                7
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -35.000
+    }
+    BONE {
+      BoneID                8
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -40.000
+    }
+    BONE {
+      BoneID                9
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -11.000
+    }
+    BONE {
+      BoneID                10
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        -13.000
+    }
+  }
+  KEYFRAME {
+    FrameNr                 6
+    Time                    0.500
+    Type                    1
+    BONE {
+      BoneID                1
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                2
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        9.000
+    }
+    BONE {
+      BoneID                3
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        5.000
+    }
+    BONE {
+      BoneID                4
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        5.000
+    }
+    BONE {
+      BoneID                5
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                6
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        15.000
+    }
+    BONE {
+      BoneID                7
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        5.000
+    }
+    BONE {
+      BoneID                8
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        10.000
+    }
+    BONE {
+      BoneID                9
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        7.000
+    }
+    BONE {
+      BoneID                10
+      RotationAxis          0.000 0.000 1.000
+      RotationAmount        2.000
+    }
+  }
+} ; END FLAG ON WIRE ANIMATION ----------------------------------------------------------------------------> END
+
+; ANIMATED BY JAVILDESIGN
+
+

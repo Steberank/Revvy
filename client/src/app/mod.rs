@@ -1,11 +1,13 @@
 //! Loop de ventana: winit, el menú o la carrera, y un redraw de wgpu.
 //!
 //! Sin argumentos arranca en el menú. Con `cargo run -p revvy-client -- <pista> [autos…]`
-//! arranca directo en la carrera. Esc en la carrera vuelve a la sala del menú.
+//! arranca directo en la carrera. Esc en la carrera, o en los resultados, vuelve a la sala
+//! del menú.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use revvy_core::rules::GameplayRules;
 use revvy_formats::VisualMesh;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -14,7 +16,7 @@ use winit::keyboard::KeyCode;
 use winit::window::{Window, WindowId};
 
 use crate::config::ClientConfig;
-use crate::drive::{cli_race, DriveView, Race};
+use crate::drive::{cli_race, DriveView, Entrant, RaceSetup};
 use crate::input::Input;
 use crate::menu::MenuView;
 use crate::render::{Gpu, ObjectMeshes};
@@ -22,8 +24,10 @@ use crate::ui::menu::MenuAction;
 
 pub fn run(config: ClientConfig) -> anyhow::Result<()> {
     let event_loop = EventLoop::new()?;
+    let rules = config.rules();
     let mut app = App {
         config,
+        rules,
         window: None,
         gpu: None,
         input: Input::new(),
@@ -38,6 +42,8 @@ pub fn run(config: ClientConfig) -> anyhow::Result<()> {
 
 struct App {
     config: ClientConfig,
+    /// Las reglas por defecto: las vueltas con que arranca la sala, y el resto.
+    rules: GameplayRules,
     window: Option<Arc<Window>>,
     gpu: Option<Gpu>,
     input: Input,
@@ -47,7 +53,7 @@ struct App {
     race: Option<DriveView>,
     /// Iniciar Carrera: carga después de que un frame mostró "Cargando pista…". El `bool`
     /// dice si ese frame ya se dibujó.
-    pending: Option<(Race, bool)>,
+    pending: Option<(RaceSetup, bool)>,
     last_tick: Instant,
 }
 
@@ -82,7 +88,7 @@ impl ApplicationHandler for App {
                 return;
             }
         }
-        let loaded = match cli_race(&self.config) {
+        let loaded = match cli_race(&self.config, &self.rules) {
             Some(race) => self.start_race(&race),
             None => self.open_menu(),
         };
@@ -145,8 +151,8 @@ impl ApplicationHandler for App {
 
 impl App {
     /// Carga la carrera y la pone en la escena.
-    fn start_race(&mut self, race: &Race) -> anyhow::Result<()> {
-        let drive = DriveView::load(&self.config, race)?;
+    fn start_race(&mut self, race: &RaceSetup) -> anyhow::Result<()> {
+        let drive = DriveView::load(&self.config, race, &self.rules)?;
         if let Some(gpu) = self.gpu.as_mut() {
             let cars: Vec<_> = drive
                 .cars()
@@ -160,12 +166,7 @@ impl App {
                 sky: drive.sky(),
                 background: drive.background(),
             };
-            let objects: Vec<_> = drive
-                .object_kinds()
-                .iter()
-                .map(|kind| (kind.meshes.as_slice(), kind.textures.as_slice()))
-                .collect();
-            upload_scene(gpu, &track, &cars, &objects);
+            upload_scene(gpu, &track, &cars, &drive.object_meshes());
         }
         self.race = Some(drive);
         Ok(())
@@ -176,7 +177,7 @@ impl App {
     fn open_menu(&mut self) -> anyhow::Result<()> {
         self.race = None;
         if self.menu.is_none() {
-            self.menu = Some(MenuView::load(&self.config)?);
+            self.menu = Some(MenuView::load(&self.config, &self.rules)?);
         }
         if let (Some(menu), Some(gpu)) = (self.menu.as_ref(), self.gpu.as_mut()) {
             let track = TrackScene {
@@ -222,7 +223,7 @@ impl App {
         let objects = race.object_models();
         let hud = race.hud();
         if let Err(err) = gpu.render(window, Some(&camera), &models, &objects, |ui| {
-            crate::ui::show_drive(ui.ctx(), &hud)
+            crate::ui::show_drive(ui, &hud)
         }) {
             tracing::error!(%err, "falló el frame");
             event_loop.exit();
@@ -264,13 +265,26 @@ impl App {
         }
         match action {
             Some(MenuAction::Quit) => event_loop.exit(),
-            Some(MenuAction::StartRace { track, cars }) => {
+            Some(MenuAction::StartRace {
+                track,
+                players,
+                laps,
+            }) => {
                 // Los jugadores primero; detrás, los autos extra de la config.
-                let cars = cars
-                    .into_iter()
-                    .chain(self.config.extra_cars.iter().cloned())
-                    .collect();
-                self.pending = Some((Race { level: track, cars }, false));
+                let players = players.into_iter().map(|(name, car)| Entrant {
+                    car,
+                    player: Some(name),
+                });
+                let extra = self.config.extra_cars.iter().map(|car| Entrant {
+                    car: car.clone(),
+                    player: None,
+                });
+                let setup = RaceSetup {
+                    level: track,
+                    entrants: players.chain(extra).collect(),
+                    laps,
+                };
+                self.pending = Some((setup, false));
             }
             None => {}
         }

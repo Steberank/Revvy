@@ -2,9 +2,11 @@
 //!
 //! Los 27 `SurfaceType` llevan los valores de `COL_MaterialInfo` de Re-Volt, pasados a
 //! metros: así una pista de Re-Volt agarra igual y una `.glb` puede usar las mismas
-//! superficies.
+//! superficies. Una pista puede redefinir algunas (`properties.txt` de RVGL): cada mundo
+//! arma su tabla con `tuned`.
 
 use glam::Vec3;
+use revvy_formats::layout::SurfaceTuning;
 use revvy_formats::SurfaceType;
 
 #[derive(Clone, Copy, Debug)]
@@ -116,6 +118,56 @@ static PROFILES: [SurfaceProfile; 27] = [
     flat(0.9, 0.9, 0.5, false),                  // Paving
 ];
 
+/// El perfil de Re-Volt de una superficie.
 pub fn profile(surface: SurfaceType) -> &'static SurfaceProfile {
     &PROFILES[surface.index()]
+}
+
+/// Los perfiles de una pista: los de Re-Volt con lo que la pista redefine, en el orden de
+/// `SurfaceType::ALL`.
+pub fn tuned(tuning: &[SurfaceTuning]) -> [SurfaceProfile; 27] {
+    let mut profiles = PROFILES;
+    for tune in tuning {
+        let profile = &mut profiles[tune.surface.index()];
+        if let Some(roughness) = tune.roughness {
+            profile.roughness = roughness;
+        }
+        if let Some(grip) = tune.grip {
+            profile.gripiness = grip;
+        }
+        if let Some(hardness) = tune.hardness {
+            profile.hardness = hardness;
+        }
+        if let Some(corrugation) = tune.corrugation {
+            profile.corrugation = corrugation.map(|[amp, lx, lz]| Corrugation { amp, lx, lz });
+        }
+        if let Some(conveyor) = tune.conveyor {
+            profile.conveyor = conveyor;
+        }
+    }
+    profiles
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_track_retunes_only_what_it_says() {
+        let tuning = [SurfaceTuning {
+            surface: SurfaceType::Dirt,
+            roughness: Some(0.73),
+            grip: Some(0.3425),
+            hardness: None,
+            corrugation: Some(None),
+            conveyor: None,
+        }];
+        let profiles = tuned(&tuning);
+        let dirt = &profiles[SurfaceType::Dirt.index()];
+        assert_eq!((dirt.roughness, dirt.gripiness), (0.73, 0.3425));
+        assert_eq!(dirt.hardness, profile(SurfaceType::Dirt).hardness);
+        assert!(dirt.corrugation.is_none(), "sin baches");
+        let road = &profiles[SurfaceType::Road.index()];
+        assert_eq!(road.roughness, profile(SurfaceType::Road).roughness);
+    }
 }

@@ -433,6 +433,122 @@ fn glb_arena_objects_come_from_its_folder() {
     assert!((cart.yaw - 1.57).abs() < 1e-6);
 }
 
+/// Una pista propia también trae zonas y POS nodes en `layout.ron`, como `.taz` y `.pan`.
+#[test]
+fn glb_arena_has_a_course() {
+    let dir = repo("../../content/levels/revvy_arena");
+    let track = load_track(&dir, TrackLoad::collision_only()).expect("arena");
+    let layout = &track.asset().layout;
+    assert_eq!(layout.zones.len(), 6);
+    assert_eq!(layout.pos_nodes.len(), 22);
+    assert_eq!((layout.start_node, layout.total_distance), (0, 220.0));
+    let start = &layout.pos_nodes[0];
+    assert_eq!((start.distance, start.next.as_slice()), (0.0, &[1][..]));
+    // La largada queda en la última zona, detrás de la meta, como en Re-Volt.
+    let last = layout.zones.iter().find(|zone| zone.id == 5).unwrap();
+    let local = last.rotation.inverse() * (layout.start_grid[0].pos - last.center);
+    assert!(local.abs().cmple(last.half_extents).all());
+}
+
+/// Wildland es una pista de RVGL: texturas JPEG con extensión `.bmp`, el cielo en `custom/`
+/// sin `sky_bt` y materiales redefinidos en `properties.txt`.
+#[test]
+fn a_rvgl_track_loads_its_textures_sky_and_materials() {
+    let dir = repo("../../content/levels/wildland");
+    let track = load_track(&dir, TrackLoad::default()).expect("wildland");
+    let asset = track.asset();
+    let visual = asset.visual.as_ref().unwrap();
+    let pages: Vec<(i16, u32)> = visual
+        .textures
+        .iter()
+        .map(|(page, image)| (*page, image.width()))
+        .collect();
+    assert_eq!(
+        pages,
+        [
+            (0, 2048),
+            (1, 1024),
+            (2, 2048),
+            (3, 2048),
+            (4, 2048),
+            (5, 4096),
+            (6, 4096),
+            (7, 4096)
+        ]
+    );
+    let sky = visual.sky.as_ref().expect("cielo de custom/");
+    assert!(sky.iter().all(|face| face.dimensions() == (2048, 2048)));
+    // `sky_bt` falta: queda del color de la niebla (`FOGCOLOR 0 0 0`).
+    assert!(sky[3].pixels().all(|pixel| pixel.0 == [0, 0, 0, 255]));
+    assert!(
+        sky[2].pixels().any(|pixel| pixel.0 != [0, 0, 0, 255]),
+        "sky_tp es una foto"
+    );
+
+    let surfaces = &asset.collision.as_ref().unwrap().surfaces;
+    let dirt = surfaces
+        .iter()
+        .find(|tune| tune.surface == revvy_formats::SurfaceType::Dirt)
+        .expect("DIRT redefinida");
+    assert_eq!(
+        (dirt.roughness, dirt.grip, dirt.hardness),
+        (Some(0.73), Some(0.3425), Some(0.2))
+    );
+    let sand = surfaces
+        .iter()
+        .find(|tune| tune.surface == revvy_formats::SurfaceType::Sand)
+        .expect("SAND redefinida");
+    assert_eq!((sand.roughness, sand.grip), (Some(1.0), Some(0.8)));
+    // Los triggers de reposición (tipo 8) son sus kill volumes.
+    assert_eq!(asset.layout.kill_volumes.len(), 7);
+}
+
+#[test]
+fn wildland_flags_wave_on_poles_that_collide() {
+    let dir = repo("../../content/levels/wildland");
+    let track = load_track(&dir, TrackLoad::default()).expect("wildland");
+    let asset = track.asset();
+    let animations = &asset.visual.as_ref().unwrap().animations;
+    // 17 mástiles con bandera (slots 0 a 12) y 2 sogas con banderines (slot 20).
+    assert_eq!(animations.objects.len(), 19);
+    assert_eq!(animations.animations.len(), 14);
+    assert_eq!(animations.models.len(), 61);
+    assert_eq!(animations.bone_count(), 17 * 5 + 2 * 11);
+
+    // Solo los mástiles quedan quietos: las banderas ondean y las sogas se mecen.
+    let rest = animations.instances(0.0);
+    let later: Vec<_> = (1..=40)
+        .map(|k| animations.instances(k as f32 * 0.25))
+        .collect();
+    let still = (0..rest.len())
+        .filter(|&i| {
+            later
+                .iter()
+                .all(|frame| frame[i].1.abs_diff_eq(rest[i].1, 1e-4))
+        })
+        .count();
+    assert_eq!(still, 17);
+
+    // Un mástil en (-3186, 840, 22255) de Re-Volt: mide 2.75 m, choca como la pista, y su
+    // bandera sale a 2.15 m del piso.
+    let pole = Vec3::new(15.93, -4.2, 111.275);
+    let triangles = &asset.collision.as_ref().unwrap().triangles;
+    let on_pole = triangles
+        .iter()
+        .filter(|tri| {
+            tri.positions.iter().all(|p| {
+                Vec3::new(p.x - pole.x, 0.0, p.z - pole.z).length() < 0.1
+                    && (pole.y - 0.01..pole.y + 2.8).contains(&p.y)
+            })
+        })
+        .count();
+    assert!(on_pole >= 4, "{on_pole} triángulos en el mástil");
+    let flag = pole + Vec3::new(0.0, 2.15, 0.0);
+    assert!(rest
+        .iter()
+        .any(|(_, matrix)| (matrix.w_axis.truncate() - flag).length() < 0.01));
+}
+
 #[test]
 fn track_titles_come_from_inf_and_track_toml() {
     let title = |rel: &str| track_title(&repo(rel));

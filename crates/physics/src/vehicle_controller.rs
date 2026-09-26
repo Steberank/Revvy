@@ -17,7 +17,6 @@ use glam::{Mat3, Mat4, Quat, Vec3};
 use rapier3d::prelude::*;
 use revvy_formats::{SurfaceType, VehicleParams, WHEEL_COUNT};
 
-use crate::surfaces;
 use crate::world::{
     track_sphere_hits, SphereHit, TrackMesh, Viewer, GROUP_CAR_HULL, GROUP_CAR_SKIN, GROUP_OBJECT,
     GROUP_OBJECT_ONLY, GROUP_WORLD, TAG_CAR,
@@ -151,6 +150,8 @@ struct WheelContact {
     static_friction: f32,
     kinetic_friction: f32,
     surface: SurfaceType,
+    /// Borde del mundo: un golpe acá no cuenta.
+    boundary: bool,
     vel_dot_norm: f32,
     down_dot_norm: f32,
 }
@@ -515,7 +516,7 @@ impl Vehicle {
         if (vel + down * w.vel).dot(hit.normal) > 0.0 {
             return;
         }
-        let profile = surfaces::profile(hit.surface);
+        let profile = hit.profile;
         let world_pos = hit.world_pos + hit.normal * SKID_RAISE;
         let mut depth = hit.depth;
         vel -= profile.conveyor;
@@ -535,6 +536,7 @@ impl Vehicle {
             static_friction: w.static_friction * profile.roughness,
             kinetic_friction: w.kinetic_friction * profile.roughness,
             surface: hit.surface,
+            boundary: profile.boundary,
             vel_dot_norm: 0.0,
             down_dot_norm: 0.0,
         });
@@ -679,7 +681,7 @@ impl Vehicle {
             return Vec3::ZERO;
         }
         let imp_norm = n * imp_dot_norm;
-        if !surfaces::profile(c.surface).boundary {
+        if !c.boundary {
             self.bang = self.bang.max(imp_dot_norm / self.mass);
         }
 
@@ -853,13 +855,15 @@ impl Vehicle {
                 self.body_contact = true;
                 let other = if pair.collider1 == handle { pair.collider2 } else { pair.collider1 };
                 let manifold = pair.manifolds.iter().find(|m| !m.data.solver_contacts.is_empty());
-                let surface = colliders.get(other).and_then(|collider| {
-                    let index = crate::world::track_mesh_of(collider)?;
+                let hit = colliders.get(other).and_then(|collider| {
+                    let mesh = track.get(crate::world::track_mesh_of(collider)?)?;
                     let manifold = manifold?;
                     let tri = if pair.collider1 == other { manifold.subshape1 } else { manifold.subshape2 };
-                    track.get(index)?.surfaces.get(tri as usize).copied()
+                    let surface = *mesh.surfaces.get(tri as usize)?;
+                    Some((surface, mesh.profile(surface).boundary))
                 });
-                if !surface.is_some_and(|s| surfaces::profile(s).boundary) {
+                let surface = hit.map(|(surface, _)| surface);
+                if !hit.is_some_and(|(_, boundary)| boundary) {
                     let (impulse, _) = pair.max_impulse();
                     self.bang = self.bang.max(impulse / self.mass);
                 }

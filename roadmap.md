@@ -214,7 +214,7 @@ Los objetos sueltos de una pista (pelotas, conos, botellas, cajas…) son cuerpo
 - [x] Solver sin warmstart: con warmstart, un casco apoyado en una cara plana (la base del cono de la arena) se bamboleaba cada vez más hasta volcar y atravesar el piso. Los tests de manejo y de paridad con el port siguen pasando.
 - [x] Sonido de golpe (`AI_BangNoiseHandler`): cada tipo con su wav, su umbral y su offset de volumen; el volumen crece con el cambio de velocidad del golpe. `hood/basketball.wav`, `hood/roadcone.wav`, `bottle.wav` y `market/carton.wav`.
 - [x] Pista propia: `objects/<nombre>/object.toml` + `model.glb` + sonido, y las apariciones en `layout.ron` (§6.4). La arena de prueba trae tres conos y una pelota con trigger que se rearma a los 8 s.
-- [x] Render: cada tipo sube sus mallas una vez y cada objeto se dibuja con su matriz, interpolada entre pasos. Hasta 128 objetos a la vez.
+- [x] Render: cada tipo sube sus mallas una vez y cada objeto se dibuja con su matriz, interpolada entre pasos. Hasta 128 objetos a la vez (512 desde 2.9).
 - [x] Tests: los conos de nhood1 quedan parados (uno está en una pendiente de 8,6°), el Calcure voltea un cono y suena, las pelotas de nhood1 rebotan y se frenan, las botellas de market1 esperan a que algo las toque y los objetos de la arena salen de su carpeta. Las puertas de market2 siguen su camino y suenan a tiempo, las de la arena empujan un cono dormido y al Calcure, el chango dado vuelta se endereza y el Calcure lo empuja.
 - [x] `toy/toybrick.wav`, el golpe del cubo ABC, ya está en `content/wavs/toy/`.
 - [x] Chango (`InitTrolley`): es el auto `cars/trolley` sin conductor. Nadie lo maneja, Tab no lo elige, no suena y se endereza solo cuando la Y de su eje vertical baja de 0,5 (`TrolleyAIHandler`), con el mismo enderezado que la **R**. A diferencia de Re-Volt, también aparece en multijugador. Está en market1 y market2.
@@ -224,37 +224,58 @@ Los objetos sueltos de una pista (pelotas, conos, botellas, cajas…) son cuerpo
 - [x] `load_car` lee las rutas de Windows de `parameters.txt` (`cars\trolley\TrollBod.m`). Antes, 176 de los 472 autos de `REVOLT/cars` cargaban sin malla, textura ni casco; el Calcure andaba porque su archivo usa `/`.
 - Quedan afuera, porque no están sus modelos: la lata, la colchoneta, las estrellas, las luces y los regadores como objetos físicos. El log avisa qué tipos del `.fob` no se traducen.
 
+### 2.9 Pistas de RVGL (`custom/`, `properties.txt`, animaciones, §1.5)
+
+wildland es una pista de RVGL, no de Re-Volt: texturas JPEG de hasta 4096 px con nombre `.bmp`, una carpeta `custom/` con el cielo y los modelos, materiales propios y banderas animadas. Antes se veía blanca, sin cielo y sin banderas.
+
+- [x] Texturas en los formatos que acepta RVGL (PNG, JPEG, WebP, TIFF, GIF, BMP) con nombre `.bmp` (`docs/formats/bmp.md`).
+- [x] `custom/` pisa los archivos del nivel: el cielo, las páginas, los `.prm` y `.ncp` de las instancias del `.fin` y los modelos de los objetos.
+- [x] Cielo: la cara que falta queda del color de la niebla (a wildland le falta `sky_bt`) y todas van al tamaño de la más grande.
+- [x] `properties.txt`: los `MATERIAL` y `CORRUGATION` que redefine la pista pasan a `Collision.surfaces` (`SurfaceTuning`) y el motor usa esos números en esa pista. En wildland, la tierra y la arena (`docs/formats/properties.md`).
+- [x] Objetos animados (`custom_animations.txt`, tipo 76 del `.fob`): esqueletos de hasta 16 huesos con keyframes que suman, sus curvas, loop, una vez o ida y vuelta, y espera para arrancar. Se dibujan con el reloj de la carrera, y los huesos quietos con `.ncp` (los mástiles) chocan como la pista. En wildland son 17 mástiles con bandera y 2 sogas con banderines (`docs/formats/custom_animations.md`).
+- [x] Render: los huesos se dibujan como objetos. El tope subió de 128 a 512 objetos a la vez; wildland usa 107.
+- [x] En desarrollo, las dependencias se compilan optimizadas (`[profile.dev.package."*"]` en `Cargo.toml`): con `cargo run`, wildland tardaba más de 20 s en cargar las texturas.
+- [x] Tests: páginas, cielo, materiales y kill volumes de wildland; banderas que ondean sobre mástiles que chocan; la carrera cuenta vueltas por la línea de carrera.
+- [ ] Mipmaps: las texturas de 4096 px titilan de lejos.
+- [ ] Sonidos 3D propios de la pista (ids 27 en adelante, con su `.wav` en `custom/`) y la música (`.ogg`).
+- [ ] De `properties.txt`: polvo, chispas, estelas, viento, gravedad y pickups.
+- [ ] De las animaciones: triggers, sonidos, chispas y luces de los keyframes, y huesos que se mueven y chocan.
+- Modo reversed: fuera de v1 (§1.5).
+
 **Hecho cuando:** se recorre nhood1 (árboles sin rectángulo negro, cielo cerrado, túnel con techo, primera curva a la derecha); el Calcure se maneja como en Re-Volt, con su velocidad, agarre y suspensión, y ruedas que giran con la velocidad y doblan con el volante; y al acelerar, frenar y derrapar suena como en el juego, igual que los objetos de nhood1. **Cumplido:** primero con el port (2.4–2.6) y después con el motor de Revvy (2.7), probado a mano en nhood1 y en la arena `.glb`, con el Calcure y el buggy propio en la misma pista. Los conos y las pelotas de nhood1 llegaron en 2.8, con sus golpes.
 
 ---
 
 ## Fase 3 — Carrera local: vueltas, respawn, HUD (§4.7, §7.4, §7.5, §7.12)
 
-Objetivo: la pista legacy ya adaptada a `TrackLayout` gobierna progreso y respawn. Sin editor todavía.
+Objetivo: la pista legacy ya adaptada a `TrackLayout` gobierna progreso y respawn. Sin editor todavía. La carrera vive en `revvy-core::race`: es lógica pura, la misma para pistas de Re-Volt y propias, y el cliente (`DriveView`) le pasa la pose de cada auto en cada frame.
 
 ### 3.1 Progreso
 
-- [ ] Cada `TrackZone` es sensor. Zona `0` = meta.
-- [ ] `pos_nodes` → `RacePath` (distancia a meta, standings).
-- [ ] Una vuelta cuenta al cruzar zona 0 en orden, con el grafo de zonas completo.
-- [ ] `GameplayRules.laps` (de `config/rules/default.ron`) decide el corte. `track.toml` laps es metadata de pista; la sala manda.
-- [ ] Al terminar: pantalla `Results` corta y vuelta a un estado “lobby local” **con el mapa todavía dibujado de fondo**.
+- [x] Zonas en el orden de la vuelta, como `UpdateCarAiZone`: un auto solo pasa a la zona siguiente o a la anterior, así que para volver a la meta tiene que pasar por todas. Afuera de su zona no avanza en la vuelta. Son cajas (OBB) que se consultan en cada frame; no hace falta un sensor de Rapier.
+- [x] `pos_nodes` → el camino de la carrera, como `UpdateCarFinishDist`: el POS node más cercano (solo pasa a un vecino) y lo que falta hasta la meta. Da el puesto de cada auto: primero los que terminaron, por tiempo; después, por vueltas y por lo que les falta.
+- [x] Una vuelta cuenta al cruzar la línea hacia adelante (`FinishDistPanel` pasa de menos de 0,25 a más de 0,75). Cruzarla hacia atrás (`BackTracking`) hace que el próximo cruce no cuente, y el primer cruce desde la grilla solo arranca la primera vuelta (`PreLap`). Los tiempos se cortan en el momento exacto del cruce, dentro del paso.
+- [x] `GameplayRules` (`revvy-core::rules`) lee `laps` y `off_track_secs` de `config/rules/default.ron`. La sala arranca con esas vueltas y **Cantidad de vueltas** en Configuración de sala las cambia: la sala manda. Sin menú (`cargo run -p revvy-client -- <pista> …`) van las de las reglas.
+- [x] Resultados: cuando terminan los jugadores, una pantalla con los que llegaron, en orden y con su tiempo total a la derecha, y abajo **«ESC para volver al menu»** parpadeando. La pista sigue dibujándose de fondo; Esc vuelve a la sala. El auto que terminó sigue solo, sin mandos.
+- [x] HUD de carrera arriba a la derecha: vuelta, puesto y los tiempos de carrera, de la vuelta en curso, de la última y de la mejor (`02:13:456`, como Re-Volt).
+- [x] Tests: la vuelta cuadrada de `race/tests.rs` (vueltas, contramano, cruce hacia atrás, atajo, reposición, puestos) y `crates/core/tests/race_tracks.rs`, que da dos vueltas por la línea de carrera de nhood1, market1 y market2 y por el circuito de la arena: justas, sin contramano ni reposiciones y con el tiempo que da el largo de la línea.
 
 ### 3.2 Wrong way y volcar
 
-- [ ] Orden inverso de zonas/POS → popup HUD **«Wrong Way !»** pulsante (`client/src/ui/hud/wrong_way.rs`). No respawnea.
-- [ ] Keybind volcar: roll/pitch a 0, XZ se mantiene. Sin contacto usable → respawn corto en el mismo punto. Avance: **R** ya endereza como `MOV_RightCar` si el auto está dado vuelta y toca algo (2.5; en el motor de Revvy, 2.7). Falta el respawn corto.
+- [x] Popup **«Wrong Way !»** (`client/src/ui/hud/wrong_way.rs`), como `panel.cpp`: el auto va de contramano si mira hacia atrás del camino (coseno > 0,6) o si salió de su zona, y el aviso cambia recién después de un segundo en el otro estado. Parpadea cada 256 ms y late. No reposiciona.
+- [x] Volcar: **R** endereza como `MOV_RightCar` si el auto está dado vuelta y toca algo (2.5; en el motor de Revvy, 2.7). El enderezado es cinemático y siempre termina, así que no hizo falta el respawn corto en el mismo punto: si el auto queda trabado de otra forma, **Inicio** lo reposiciona (3.3).
 
 ### 3.3 Respawn (§7.12)
 
-Destino: último `PosNode` válido de la `TrackZone` reciente, auto derecho, i-frames cortos. `PhysicsWorld::place_vehicle` ya pone un auto quieto en una pose (2.7).
+Destino: el último POS node sano (el del auto mientras estaba dentro de su zona; si ese nodo quedó fuera de todas las zonas, el más cercano del camino que esté adentro), apoyado sobre el piso, derecho y mirando hacia donde sigue la carrera, como `CAI_ResetCar`. `PhysicsWorld::ground_below` busca el piso y el auto queda 0,5 m arriba. Durante 1 s no se reposiciona solo, y la pantalla sale del negro en medio segundo.
 
-- [ ] Kill volume: sensor, al entrar respawn (en legacy, los triggers `.tri` de tipo 8, `TriggerRepositionCar`).
-- [ ] Fuera de **todas** las TrackZones más de `off_track_secs` (~1.5 s) → respawn. Las zonas son el volumen jugable.
-- [ ] Fuera del AABB mundo (`Collision` + margen) → respawn inmediato.
-- [ ] Keybind / botón manual.
+- [x] Kill volume: al entrar, respawn (en legacy, los triggers `.tri` de tipo 8, `TriggerRepositionCar`; en una pista propia, `kill_volumes` de `layout.ron`).
+- [x] Fuera de **todas** las TrackZones más de `off_track_secs` (1,5 s) → respawn. Las zonas son el volumen jugable.
+- [x] Fuera del AABB de la pista (`Collision` + 10 m) → respawn inmediato.
+- [x] Tecla manual: **Inicio**, como `KeyReposition` de Re-Volt.
+- [x] Pista propia: `layout.ron` también trae `zones`, `pos_nodes`, `start_node`, `total_distance` y `kill_volumes`, con la misma semántica que `.taz`, `.pan` y los triggers (§7.4). La arena tiene un circuito de prueba de 220 m con seis zonas: sale por el slalom, pasa las puertas y la rampa, dobla por el pasto y la tierra y vuelve a la recta.
 
-**Hecho cuando:** se completan N vueltas, el popup de contramano aparece al ir al revés, caerse del mapa y el botón manual devuelven al último nodo sano.
+**Hecho cuando:** se completan N vueltas, el popup de contramano aparece al ir al revés, caerse del mapa y el botón manual devuelven al último nodo sano. **Cumplido** en los tests de `revvy-core` y `DriveView` (reaparecer en la arena). Falta probarlo a mano en nhood1, market1, market2 y la arena.
 
 ---
 
@@ -263,6 +284,8 @@ Destino: último `PosNode` válido de la `TrackZone` reciente, auto derecho, i-f
 Todavía offline. Los datos pueden venir del layout legacy adaptado o de un `layout.ron` escrito a mano (el editor llega en fase 9).
 
 ### 4.1 `GameplayRules`
+
+Avance: `revvy-core::rules::GameplayRules` ya lee `laps` y `off_track_secs` (3.1); el resto de los campos del archivo se ignora hasta esta fase.
 
 - [ ] Recurso ECS cargado de RON: `laps`, `allow_jump`, `sim_authority` (ignorado offline), `late_join_mode`, `disconnect_bot_replace`, `reconnect_secs`, vector de turbo, `pickups_enabled`, `pickup_odds: Option<PowerupOdds>`.
 - [ ] Preset `config/rules/antigrav_turbo.ron` cambia el vector de turbo sin recompilar.

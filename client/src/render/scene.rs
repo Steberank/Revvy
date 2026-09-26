@@ -7,12 +7,13 @@ use revvy_formats::VisualMesh;
 
 /// Autos que se pueden dibujar a la vez: los 32 de una sala (§5 de la arquitectura).
 pub const MAX_CARS: usize = 32;
-/// Objetos de la pista que se dibujan a la vez: pelotas, conos, botellas…
-pub const MAX_OBJECTS: usize = 128;
+/// Objetos de la pista que se dibujan a la vez: pelotas, conos, botellas… y cada hueso de
+/// los objetos animados (wildland tiene 107).
+pub const MAX_OBJECTS: usize = 512;
 /// Primer slot de los objetos, después de los de los autos.
 const OBJECT_SLOT: usize = 1 + 5 * MAX_CARS;
 /// Slot 0 = identidad (pista). Después, cinco por auto (chasis y ruedas FL, FR, BL, BR) y
-/// uno por objeto: 289 matrices de 256 bytes (74 KB). Cada frame se escriben las usadas.
+/// uno por objeto: 673 matrices de 256 bytes (172 KB). Cada frame se escriben las usadas.
 pub const MODEL_SLOTS: usize = OBJECT_SLOT + MAX_OBJECTS;
 /// Alineación mínima de offsets dinámicos de uniform en wgpu.
 const MODEL_STRIDE: u64 = 256;

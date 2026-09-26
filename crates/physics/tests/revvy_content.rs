@@ -96,3 +96,34 @@ fn ice_holds_less_than_road() {
     assert!(road > 0.0, "no dobla en asfalto: {road}");
     assert!(ice < road * 0.7, "el hielo agarra como el asfalto: road {:.1}° ice {:.1}°", road.to_degrees(), ice.to_degrees());
 }
+
+/// El piso para reaparecer: la arena está en y = 0 y nhood1, bajo la largada.
+#[test]
+fn ground_below_finds_the_track() {
+    let arena = world("levels/revvy_arena", &[]);
+    let ground = arena
+        .ground_below(Vec3::new(3.0, 2.0, -12.0), 5.0)
+        .expect("piso de la arena");
+    assert!(
+        ground.distance(Vec3::new(3.0, 0.0, -12.0)) < 1e-4,
+        "{ground}"
+    );
+    assert_eq!(
+        arena.ground_below(Vec3::new(3.0, 2.0, -12.0), 1.0),
+        None,
+        "más lejos que depth"
+    );
+
+    let nhood1 = world("levels/nhood1", &[]);
+    let dir = content("levels/nhood1");
+    let track = load_track(&dir, TrackLoad::collision_only()).unwrap();
+    let start = track.asset.layout.start_grid[0].pos;
+    let ground = nhood1
+        .ground_below(start + Vec3::Y * 0.5, 5.0)
+        .expect("piso de nhood1");
+    assert!(
+        (ground.y - start.y).abs() < 0.2,
+        "la largada queda a {} m del piso",
+        start.y - ground.y
+    );
+}

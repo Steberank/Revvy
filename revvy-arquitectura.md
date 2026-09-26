@@ -91,10 +91,17 @@ El corte que corre hoy es **manejo en una pista**: `load_track` + `load_car` →
 
   `TrackAsset.legacy` (`LegacyLevel`) y `CarDef.revolt` (el `CAR_INFO` crudo) siguen saliendo, pero solo los lee el port de referencia en los tests.
 - Las líneas de `parameters.txt` que empiezan con `;)` son claves de RVGL que el Re-Volt original toma como comentario (`SFXENGINE`, `TCARBOX`, `Flippable`…). Revvy las lee como RVGL.
+- **Pistas de RVGL.** Además de los archivos de Re-Volt, una pista de RVGL puede traer (wildland trae todo):
+  - texturas en otros formatos con nombre `.bmp` (PNG, JPEG, WebP, TIFF, GIF), que se leen según su contenido;
+  - una carpeta `custom/` que pisa archivos del nivel: el cielo, las páginas, los modelos (`.m`, `.prm`, `.ncp`) y los sonidos;
+  - `properties.txt`, cuyos `MATERIAL` y `CORRUGATION` pasan a `Collision.surfaces` (`SurfaceTuning`): el motor usa esos números en esa pista (`docs/formats/properties.md`);
+  - `custom_animations.txt` y objetos de tipo 76 en el `.fob`: esqueletos animados por keyframes, que llegan en `Visual.animations` (`TrackAnimations`). Se dibujan con la pose de cada momento de la carrera; los huesos que nunca se mueven y traen `.ncp` chocan como la pista (`docs/formats/custom_animations.md`).
+
+  Todavía no se usan: el polvo, las chispas, las estelas, el viento, la gravedad y los pickups de `properties.txt`; los triggers, sonidos, chispas y luces de las animaciones; los sonidos 3D propios (ids 27 en adelante) y la música. Tampoco hay mipmaps (roadmap 2.9).
 - El **modo reversed** queda fuera de v1: las subcarpetas `reversed/` de las pistas custom no son consistentes entre sí (`docs/formats/fan.md`). El loader lee solo la carpeta de la pista y no entra a `reversed/`.
 
 ### 1.6 Reglas editables / modos custom
-- Config data-driven en **RON** o **TOML** por sala (`GameplayRules`). Vueltas, `late_join_mode`, `sim_authority`, bot al desconectar, odds de pickups, turbo, etc. viven ahí, no hardcodeados.
+- Config data-driven en **RON** o **TOML** por sala (`GameplayRules`). Vueltas, `late_join_mode`, `sim_authority`, bot al desconectar, odds de pickups, turbo, etc. viven ahí, no hardcodeados. Hoy `revvy-core::rules` lee `laps` y `off_track_secs` de `config/rules/default.ron`; la sala arranca con esas vueltas y las puede cambiar.
 - **Autoridad de simulación** (`GameplayRules.sim_authority`): `Client` (con amigos) o `Server` (competitivo). Ver §4.8. El canal Quinn de sala existe en ambos; lo que cambia es quién integra la física del auto.
 - Odds de poderes de **autoría de pista** (capas 1–2), campos de fuerza, piso, mods de auto y volúmenes de respawn van en `layout.ron` (§7). El **host** pisa las odds **solo si la pista no trae tabla propia** (§7.7.1).
 - Opcional a futuro: **Rhai** (scripting embebido, puro Rust, sandboxeado) para lógica de modos custom más allá de simples valores numéricos.
@@ -251,6 +258,9 @@ revvy/
 │   │   │   ├── revvy_car.rs       # auto propio: car.toml + body.glb + collision.glb
 │   │   │   ├── revolt_car.rs      # traducción: CAR_INFO + .hul → VehicleParams (SI)
 │   │   │   ├── revolt_sounds.rs   # traducción: banco del nivel + objetos del .fob → TrackSounds
+│   │   │   ├── revolt_objects.rs  # traducción: objetos del .fob → TrackObjects y TrackAnimations
+│   │   │   ├── rvgl_properties.rs # traducción: properties.txt de RVGL → SurfaceTuning
+│   │   │   ├── animations.rs      # objetos animados de RVGL (custom_animations.txt) y su pose
 │   │   │   ├── vehicle.rs         # VehicleParams, WheelParams, ChassisShape, CarSound
 │   │   │   ├── sounds.rs          # TrackSounds: banco y emisores
 │   │   │   ├── layout.rs          # TrackLayout (zones, AI, POS, pickups, fld, …) y SurfaceType (27)
@@ -519,9 +529,13 @@ El servidor de **sala** (Quinn) existe en ambos modos de autoridad.
 
 ### 4.7 Fin de carrera, contramano, volcar
 
-- **Vueltas:** `GameplayRules.laps`. Al completarlas (zona 0 con el contador lleno) el corredor terminó. Cuando terminaron los corredores humanos (o el host corta), `Results` corto y **lobby con el mapa todavía de fondo** (no se re-descarga).
-- **Contramano:** orden inverso de TrackZones/POS → HUD popup **«Wrong Way !»** saltante/pulsante (`client/src/ui/hud/wrong_way.rs`). No respawnea solo por eso.
-- **Volcar:** keybind que **endereza** el auto (roll/pitch a 0, se mantiene XZ). Si no hay contacto usable, respawn corto en el mismo punto.
+- **Vueltas:** las de la sala (`GameplayRules.laps` si no se cambian). La lógica es la de Re-Volt y vive en `revvy-core::race`, igual para pistas de Re-Volt y propias:
+  - La zona del auto solo pasa a la siguiente o a la anterior (`UpdateCarAiZone`): para volver a la meta hay que recorrerlas todas, en orden. Afuera de su zona, el auto no avanza en la vuelta.
+  - El camino de POS nodes da lo que falta hasta la meta (`UpdateCarFinishDist`). Una vuelta cuenta al cruzar la línea hacia adelante; cruzarla hacia atrás anula el cruce siguiente (`BackTracking`), y el primer cruce desde la grilla solo arranca la primera vuelta (`PreLap`).
+  - El puesto: primero los que terminaron, por tiempo; después, por vueltas y por lo que les falta hasta la meta.
+- **Resultados:** cuando terminan los corredores humanos, una pantalla con los que llegaron, en orden y con su tiempo total, y abajo «ESC para volver al menu» parpadeando. La pista sigue de fondo; Esc vuelve a la sala. El auto que terminó sigue solo, sin mandos. (En red, el host también puede cortar.)
+- **Contramano:** HUD popup **«Wrong Way !»** (`client/src/ui/hud/wrong_way.rs`), como `panel.cpp`: el auto mira hacia atrás del camino (coseno > 0,6) o salió de su zona, y el aviso cambia después de un segundo en el otro estado. Parpadea cada 256 ms. No respawnea solo por eso.
+- **Volcar:** **R** endereza el auto como `MOV_RightCar` (§1.9) si está dado vuelta y toca algo. Si queda trabado de otra forma, la tecla de reposición lo lleva al último nodo sano (§7.12).
 
 ### 4.8 Autoridad: `Client` vs `Server`
 
@@ -657,7 +671,7 @@ Una pista **legacy** sigue siendo la carpeta Re-Volt de siempre (`.w`, `.ncp`, `
 
 No se mezclan en la misma carpeta.
 
-Hoy `gltf_track.rs` lee `track.toml` (la escena es `visual.glb`, o la que diga `visual`), dibuja `Visual` y `Props`, choca con `Collision` (la superficie es el nombre del material) y de `layout.ron` toma por ahora `start_grid` y `objects`. `extras.revvy.collider` todavía no se lee: toda la colisión es malla de triángulos. La pista de prueba es `content/levels/revvy_arena`.
+Hoy `gltf_track.rs` lee `track.toml` (la escena es `visual.glb`, o la que diga `visual`), dibuja `Visual` y `Props`, choca con `Collision` (la superficie es el nombre del material) y de `layout.ron` toma por ahora `start_grid`, lo que usa la carrera (`zones`, `pos_nodes`, `start_node`, `total_distance` y `kill_volumes`, §7.4) y `objects`. Si falta `total_distance`, es el `distance` más grande de los POS nodes. `extras.revvy.collider` todavía no se lee: toda la colisión es malla de triángulos. La pista de prueba es `content/levels/revvy_arena`.
 
 #### Objetos de una pista propia
 
@@ -716,6 +730,8 @@ Teclas:
 
 - **↑/W** acelera, **↓/S** frena y da reversa, **←/A** y **→/D** doblan.
 - **R** endereza el auto, solo si está dado vuelta (como `MOV_RightCar`).
+- **Inicio** lo reposiciona en su último nodo sano (§7.12), como `KeyReposition` de Re-Volt.
+- **Esc** vuelve a la sala, en la carrera o en los resultados.
 - **Tab** cambia el auto que se maneja; los demás quedan quietos.
 - **C** alterna entre la cámara de persecución y la libre. En la libre, **WASD** mueve, **Q/E** bajan y suben, el mouse gira y **Shift** acelera; las flechas siguen manejando.
 
@@ -730,7 +746,8 @@ Solo `TrackAsset.visual`. El `.ncp` no se dibuja.
 - **Color key** (`texture.cpp`, clave RGB 0): Re-Volt se lo pone a todas sus texturas (`LoadTextureClever`). Un texel negro queda con alpha 0 y el shader lo descarta; el resto de la cara se dibuja. Aplica a las pistas de Re-Volt y a todos los autos y objetos, también a los propios: el negro puro de su textura es transparente (el espacio entre las barras del chango). No aplica a las pistas `.glb`.
 - **Gouraud negro no es color key.** El techo del túnel de nhood1 tiene vértices en `0,0,0` y textura con color. Re-Volt lo modula a negro y lo dibuja. Revvy también: si se omite la cara, el túnel queda abierto.
 - **Luz global:** `DrawCubePolys` pinta `textura × color de vértice`. No hay sol ni hemisferio encima. En nhood1 `WORLDRGBPER` es 100, así que el gouraud del archivo entra tal cual. `.lit` sigue sin usarse.
-- **Cielo:** `RenderSkybox` pega `sky_ft`, `sky_rt`, `sky_bk`, `sky_lt`, `sky_tp`, `sky_bt` en +Z, −X, −Z, +X, arriba y abajo del archivo. Tras el giro de ejes, el cubemap es +X `sky_rt`, −X `sky_lt`, +Y `sky_tp`, −Y `sky_bt`, +Z `sky_ft`, −Z `sky_bk`.
+- **Cielo:** `RenderSkybox` pega `sky_ft`, `sky_rt`, `sky_bk`, `sky_lt`, `sky_tp`, `sky_bt` en +Z, −X, −Z, +X, arriba y abajo del archivo. Tras el giro de ejes, el cubemap es +X `sky_rt`, −X `sky_lt`, +Y `sky_tp`, −Y `sky_bt`, +Z `sky_ft`, −Z `sky_bk`. Las caras se buscan primero en `custom/` (RVGL). Una cara que falta queda del color de la niebla (a wildland le falta `sky_bt`), y todas van al tamaño de la más grande.
+- **Objetos animados (RVGL):** cada hueso se dibuja como un objeto, con las páginas de la pista y la matriz de ese momento de la carrera. Ocupan lugares de `MAX_OBJECTS` (512), y los objetos de la física usan los que quedan.
 
 #### Autos legacy
 
@@ -1074,11 +1091,11 @@ Al cargar una pista `revvy-glb-v1`:
 1. `gltf_track.rs` construye meshes wgpu (nodo `Visual`) y `rapier` TriMesh (nodo `Collision` + `SurfaceType`).
 2. `layout.rs` deserializa `layout.ron`. Si falta o `validate` falla, la pista **no entra a carrera** (el editor sí puede abrirla a medio hacer).
 3. `core` registra:
-   - cada `TrackZone` como collider sensor (query) para saber en qué sector está el auto;
-   - el grafo `pos_nodes` como `RacePath` (posición relativa / vueltas);
+   - las `TrackZone` como cajas que `revvy-core::race` consulta en cada frame para saber en qué sector está el auto (no son colliders de Rapier);
+   - el grafo `pos_nodes` como el camino de la carrera (posición relativa / vueltas);
    - `start_grid[i]` como spawn del slot `i`;
    - cada `PickupSpawn` como entidad con sensor (mesh `client/assets/pickups/bolt.glb`). Si el auto tiene el **slot vacío**: `resolve_odds` → llena el slot, se oculta el rayito, respawn a `respawn_secs`. Si el slot **está lleno**: no hay overlap de pickup (el auto **traspasa** el rayito, no cambia el poder). Ver §7.7.2;
-   - `kill_volumes` como sensors: on enter → respawn (§7.12);
+   - `kill_volumes` como cajas: al entrar → respawn (§7.12);
    - cada `ForceField` como sensor de volumen; `physics/force_field.rs` aplica la fuerza/gravedad a los autos que solapan;
    - `surface_effects` pisa los defaults de `surfaces.default.ron`; el contacto rueda usa `SurfaceType` del mesh, salvo que un `surface_volumes` contenga el punto de contacto.
    - al spawnear cada auto, `apply_param_mods(car_def, layout.param_mods)` produce el `CarDef` efectivo (§7.10). Los mods con `surface: Some(...)` no se hornean: se aplican en el tick si el contacto coincide.
@@ -1322,7 +1339,14 @@ Tres disparadores automáticos + uno manual. Destino: último **PosNode** válid
 
 Las kill volumes son el caso “tocar el bloque malo”. Las TrackZones son el caso “bloques gigantes = zona jugable, si te salís volvés”. Los dos coexisten.
 
-Legacy: triggers de reposition de Re-Volt → `kill_volumes` si el tipo es kill; si no, solo TrackZones + world AABB.
+Legacy: los triggers `.tri` de tipo 8 (`TriggerRepositionCar`) → `kill_volumes`; nhood1, market1 y market2 no traen ninguno, así que ahí mandan las TrackZones y el borde del mundo.
+
+Cómo se hace (`revvy-core::race` y `DriveView`):
+
+- **Destino:** el último POS node sano, el que tenía el auto mientras estaba dentro de su zona. Si ese nodo quedó fuera de todas las zonas, el más cercano del camino que esté adentro. El auto aparece derecho, mirando hacia donde sigue la carrera, 0,5 m arriba del piso que encuentra `PhysicsWorld::ground_below` debajo del nodo, como `CAI_ResetCar`. Sin camino (una pista sin zonas), vuelve a su puesto de largada.
+- **Margen:** el mundo es la caja de `Collision` más 10 m. `off_track_secs` es 1,5 s (`GameplayRules`).
+- **Después:** durante 1 s el auto no se reposiciona solo, así que no entra en una vuelta de reposiciones al borde de una kill volume. La pantalla del auto que se maneja sale del negro en medio segundo y la cámara vuelve atrás del auto.
+- **Manual:** **Inicio**, como `KeyReposition` de Re-Volt.
 
 ---
 

@@ -30,3 +30,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1"
 thiserror = "2"
 toml = "0.8"
+
+# En desarrollo, las dependencias (image, rapier, wgpu…) van optimizadas y el código de
+# Revvy no, para poder depurarlo. Sin esto, una pista de RVGL con texturas JPEG de 4096 px
+# tarda más de 20 s en cargar con `cargo run`.
+[profile.dev.package."*"]
+opt-level = 2

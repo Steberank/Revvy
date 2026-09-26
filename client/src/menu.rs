@@ -4,6 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use glam::Vec3;
+use revvy_core::rules::GameplayRules;
 use revvy_formats::layout::TrackLayout;
 use revvy_formats::{load_bmp, load_car, load_track, track_title, TrackLoad, VisualMesh};
 
@@ -40,7 +41,7 @@ pub struct MenuView {
 }
 
 impl MenuView {
-    pub fn load(config: &ClientConfig) -> anyhow::Result<Self> {
+    pub fn load(config: &ClientConfig, rules: &GameplayRules) -> anyhow::Result<Self> {
         let content = config.content_dir();
         let level_dir = resolve_content(&content.join("levels"), &config.level);
         tracing::info!(pista = %level_dir.display(), "fondo del menú");
@@ -59,6 +60,9 @@ impl MenuView {
             .into_iter()
             .map(|(id, title)| track_entry(&content, &id, &title))
             .collect();
+        let mut state = MenuState::new(&config.player_name, &config.car, &car_name, tracks);
+        // La sala arranca con las vueltas de las reglas por defecto.
+        state.settings.laps = rules.laps;
         Ok(Self {
             track_meshes: visual.map(|v| v.meshes.clone()).unwrap_or_default(),
             track_textures: visual.map(|v| v.textures.clone()).unwrap_or_default(),
@@ -66,7 +70,7 @@ impl MenuView {
             sky: visual.and_then(|v| v.sky.clone()),
             background: visual.and_then(|v| v.background),
             camera: Flyby::new(&track.asset.layout),
-            state: MenuState::new(&config.player_name, &config.car, &car_name, tracks),
+            state,
         })
     }
 

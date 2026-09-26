@@ -23,11 +23,13 @@ mod revolt_objects;
 mod revolt_sounds;
 mod revvy_car;
 mod revvy_objects;
+mod rvgl_properties;
 mod taz;
 mod tri;
 mod vis;
 mod world;
 
+pub mod animations;
 pub mod gltf_track;
 pub mod layout;
 pub mod lit;
@@ -37,6 +39,7 @@ pub mod pro;
 pub mod sounds;
 pub mod vehicle;
 
+pub use animations::TrackAnimations;
 pub use axes::REVOLT_TO_METERS;
 pub use bmp::load as load_bmp;
 pub use fin::Instance as LegacyInstance;
@@ -156,11 +159,15 @@ pub struct Visual {
     /// (`SetBackgroundColor`): el techo que falta en market1 se ve marrón oscuro. `None`
     /// en las `.glb`: el fondo de Revvy.
     pub background: Option<[u8; 3]>,
+    /// Los objetos animados (RVGL): se dibujan con la pose de cada momento de la carrera.
+    pub animations: TrackAnimations,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Collision {
     pub triangles: Vec<ncp::CollisionTri>,
+    /// Las superficies que la pista redefine; las demás son las de Re-Volt.
+    pub surfaces: Vec<layout::SurfaceTuning>,
 }
 
 pub trait Track {
@@ -270,6 +277,12 @@ pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatE
         find_stem(dir, &stem, "inf").ok_or_else(|| FormatError::Missing(format!("{stem}.inf")))?;
 
     let world = world::World::parse(&world_path)?;
+    let track_inf = inf::parse_track(&inf_path)?;
+    let objects = match find_stem(dir, &stem, "fob") {
+        Some(path) => fob::parse_objects(&path)?,
+        None => Vec::new(),
+    };
+    let (animations, still_bones) = revolt_objects::animated(dir, &track_inf, &objects);
     let collision = if options.collision {
         let mut triangles = ncp::parse(&ncp_path)?;
         if let Some(path) = find_stem(dir, &stem, "fin") {
@@ -278,19 +291,20 @@ pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatE
             tracing::info!(props = props.len(), "colisión de instancias");
             triangles.extend(props);
         }
-        Some(Collision { triangles })
+        triangles.extend(still_bones);
+        Some(Collision {
+            triangles,
+            surfaces: rvgl_properties::surface_tuning(dir),
+        })
     } else {
         None
     };
 
-    let mut layout = TrackLayout::default();
-    let track_inf = inf::parse_track(&inf_path)?;
-    layout.start_grid = track_inf.start_grid.clone();
-
-    let objects = match find_stem(dir, &stem, "fob") {
-        Some(path) => fob::parse_objects(&path)?,
-        None => Vec::new(),
+    let mut layout = TrackLayout {
+        start_grid: track_inf.start_grid.clone(),
+        ..TrackLayout::default()
     };
+
     let sounds = revolt_sounds::track_sounds(&id, &objects);
     let triggers = match find_stem(dir, &stem, "tri") {
         Some(path) => tri::parse(&path)?,
@@ -383,8 +397,9 @@ pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatE
             meshes,
             textures: bmp::load_pages(dir, &stem),
             color_key: true,
-            sky: load_sky(dir),
+            sky: load_sky(dir, track_inf.fog_color),
             background: Some(track_inf.fog_color),
+            animations,
         })
     } else {
         None
@@ -406,16 +421,48 @@ pub fn load_track(dir: &Path, options: TrackLoad) -> Result<LoadedTrack, FormatE
 /// `RenderSkybox` pega `sky_ft`, `sky_rt`, `sky_bk`, `sky_lt`, `sky_tp` y `sky_bt` en +Z,
 /// −X, −Z, +X, arriba y abajo del archivo. Con el giro de ejes, el cubemap queda
 /// +X `sky_rt`, −X `sky_lt`, +Y `sky_tp`, −Y `sky_bt`, +Z `sky_ft`, −Z `sky_bk`.
-fn load_sky(level: &Path) -> Option<[image::RgbaImage; 6]> {
+///
+/// Las caras van en `custom/` o en la carpeta del nivel. Una que falta (a wildland le falta
+/// `sky_bt`) queda del color de la niebla, como el fondo; sin ninguna no hay cielo. Todas
+/// quedan cuadradas y del tamaño de la más grande.
+fn load_sky(level: &Path, fog: [u8; 3]) -> Option<[image::RgbaImage; 6]> {
     let names = ["sky_rt", "sky_lt", "sky_tp", "sky_bt", "sky_ft", "sky_bk"];
-    let mut faces = Vec::with_capacity(6);
-    for name in names {
-        faces.push(bmp::load(&find_file(level, &format!("{name}.bmp"))?).ok()?);
+    let faces: Vec<Option<image::RgbaImage>> = names
+        .iter()
+        .map(|name| {
+            let path = level_file(level, &format!("{name}.bmp"))?;
+            bmp::load(&path)
+                .map_err(|err| tracing::warn!(%err, "cara del cielo ilegible"))
+                .ok()
+        })
+        .collect();
+    let size = faces
+        .iter()
+        .flatten()
+        .map(|face| face.width().max(face.height()))
+        .max()?;
+    let missing: Vec<&str> = names
+        .iter()
+        .zip(&faces)
+        .filter(|(_, face)| face.is_none())
+        .map(|(name, _)| *name)
+        .collect();
+    if !missing.is_empty() {
+        tracing::info!(caras = ?missing, "al cielo le faltan caras: van del color de la niebla");
     }
-    let faces: [image::RgbaImage; 6] = faces.try_into().ok()?;
-    let (width, height) = (faces[0].width(), faces[0].height());
-    let square = width == height && faces.iter().all(|face| face.width() == width && face.height() == height);
-    square.then_some(faces)
+    let faces: Vec<image::RgbaImage> = faces
+        .into_iter()
+        .map(|face| match face {
+            Some(face) if face.width() == size && face.height() == size => face,
+            Some(face) => {
+                image::imageops::resize(&face, size, size, image::imageops::FilterType::Triangle)
+            }
+            None => {
+                image::RgbaImage::from_pixel(size, size, image::Rgba([fog[0], fog[1], fog[2], 255]))
+            }
+        })
+        .collect();
+    faces.try_into().ok()
 }
 
 pub fn parse_car_text(text: &str) -> inf::CarParams {
@@ -512,6 +559,19 @@ fn load_named_mesh(dir: &Path, model: &str) -> Result<Vec<VisualMesh>, FormatErr
 /// (`cars\trolley\TrollBod.m`), que en Linux no separa carpetas.
 fn revolt_file_name(path: &str) -> &str {
     path.rsplit(['\\', '/']).next().unwrap_or(path)
+}
+
+/// La carpeta `custom/` de un nivel de RVGL: lo que hay ahí reemplaza a los archivos del
+/// nivel y a los globales (`models/`, `gfx/`) para esa pista.
+pub(crate) fn custom_dir(level: &Path) -> Option<PathBuf> {
+    find_file(level, "custom").filter(|path| path.is_dir())
+}
+
+/// Un archivo del nivel: primero en `custom/`, después en la carpeta del nivel.
+pub(crate) fn level_file(level: &Path, name: &str) -> Option<PathBuf> {
+    custom_dir(level)
+        .and_then(|custom| find_file(&custom, name))
+        .or_else(|| find_file(level, name))
 }
 
 pub(crate) fn find_file(dir: &Path, name: &str) -> Option<PathBuf> {

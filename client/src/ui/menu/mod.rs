@@ -11,23 +11,12 @@ use egui::{
     Response, Sense, Shape, Stroke, StrokeKind, Vec2,
 };
 
+use super::theme::{
+    shadow_text, ACCENT, ACCENT_DARK, BUTTON, CARD, CARD_BORDER, CARD_EMPTY, DARK, DIM, HIGHLIGHT,
+    PANEL, READY, TAB_IDLE, TEXT,
+};
 use state::{Command, MainOption, RoomItem, Screen, Setting, Tab, Target};
 pub use state::{MenuAction, MenuState, TrackEntry};
-
-const ACCENT: Color32 = Color32::from_rgb(255, 184, 28);
-const ACCENT_DARK: Color32 = Color32::from_rgb(214, 150, 18);
-const TEXT: Color32 = Color32::from_rgb(240, 241, 245);
-const DIM: Color32 = Color32::from_rgb(150, 155, 168);
-const DARK: Color32 = Color32::from_rgb(22, 22, 26);
-const READY: Color32 = Color32::from_rgb(92, 206, 124);
-const PANEL: Color32 = Color32::from_rgba_unmultiplied_const(10, 12, 18, 210);
-const TAB_IDLE: Color32 = Color32::from_rgba_unmultiplied_const(10, 12, 18, 165);
-const CARD: Color32 = Color32::from_rgba_unmultiplied_const(255, 255, 255, 18);
-const CARD_EMPTY: Color32 = Color32::from_rgba_unmultiplied_const(255, 255, 255, 8);
-const CARD_BORDER: Color32 = Color32::from_rgba_unmultiplied_const(255, 255, 255, 34);
-const BUTTON: Color32 = Color32::from_rgba_unmultiplied_const(255, 255, 255, 22);
-const HIGHLIGHT: Color32 = Color32::from_rgba_unmultiplied_const(255, 184, 28, 40);
-const SHADOW: Color32 = Color32::from_black_alpha(160);
 
 const OPTION_HEIGHT: f32 = 46.0;
 const TAB_HEIGHT: f32 = 36.0;
@@ -715,19 +704,6 @@ fn button(painter: &Painter, rect: Rect, label: &str, fill: Color32, color: Colo
         FontId::proportional(18.0),
         color,
     );
-}
-
-/// Texto con sombra, para leerlo sobre la pista.
-fn shadow_text(
-    painter: &Painter,
-    pos: Pos2,
-    anchor: Align2,
-    text: &str,
-    font: FontId,
-    color: Color32,
-) {
-    painter.text(pos + vec2(2.0, 2.0), anchor, text, font.clone(), SHADOW);
-    painter.text(pos, anchor, text, font, color);
 }
 
 /// Lo que lleva una tecla dibujada. Las flechas se dibujan: la fuente no las trae.

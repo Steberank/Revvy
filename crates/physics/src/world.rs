@@ -13,7 +13,7 @@ use rapier3d::prelude::*;
 use revvy_formats::{Collision, MotionCue, ObjectKind, ObjectMotion, SurfaceType, VehicleParams};
 
 use crate::objects::{Mover, ObjectMaterial, Prop};
-use crate::surfaces;
+use crate::surfaces::{self, SurfaceProfile};
 use crate::vehicle_controller::{CarMaterial, Controls, Vehicle};
 
 /// Gravedad del mundo (m/s²): la de Re-Volt, 2200 unidades de 5 mm por segundo².
@@ -56,8 +56,16 @@ pub enum Viewer {
 pub(crate) struct TrackMesh {
     pub collider: ColliderHandle,
     pub surfaces: Vec<SurfaceType>,
+    /// Cómo se comporta cada superficie en esta pista (`surfaces::tuned`).
+    pub profiles: [SurfaceProfile; 27],
     pub camera: bool,
     pub objects: bool,
+}
+
+impl TrackMesh {
+    pub fn profile(&self, surface: SurfaceType) -> &SurfaceProfile {
+        &self.profiles[surface.index()]
+    }
 }
 
 /// Contacto de una esfera contra un triángulo de la pista, como `SphereCollPoly`: la
@@ -75,6 +83,8 @@ pub struct SphereHit {
     /// Negativa cuando la esfera entra en la superficie.
     pub depth: f32,
     pub surface: SurfaceType,
+    /// Cómo se comporta esa superficie en esta pista.
+    pub profile: SurfaceProfile,
 }
 
 pub struct PhysicsWorld {
@@ -99,6 +109,7 @@ impl PhysicsWorld {
     /// La pista va en hasta tres mallas: la común, la que solo frena la cámara y la que
     /// la cámara atraviesa.
     pub fn new(collision: &Collision) -> Self {
+        let profiles = surfaces::tuned(&collision.surfaces);
         let mut colliders = ColliderSet::new();
         let mut track = Vec::new();
         for (camera, objects) in [(true, true), (true, false), (false, true)] {
@@ -136,6 +147,7 @@ impl PhysicsWorld {
             track.push(TrackMesh {
                 collider: colliders.insert(collider),
                 surfaces,
+                profiles,
                 camera,
                 objects,
             });
@@ -340,6 +352,19 @@ impl PhysicsWorld {
         hits
     }
 
+    /// El piso debajo de `from`: el primer triángulo de la pista que tocan los autos, a
+    /// menos de `depth` metros hacia abajo. Sirve para reaparecer apoyado.
+    pub fn ground_below(&self, from: Vec3, depth: f32) -> Option<Vec3> {
+        let ray = Ray::new(from, Vec3::NEG_Y);
+        self.track
+            .iter()
+            .filter(|mesh| mesh.objects)
+            .filter_map(|mesh| self.colliders.get(mesh.collider)?.shape().as_trimesh())
+            .filter_map(|mesh| mesh.cast_local_ray(&ray, depth, true))
+            .min_by(f32::total_cmp)
+            .map(|toi| from + Vec3::NEG_Y * toi)
+    }
+
     /// `LineOfSight`: nada de la pista que vea la cámara corta el segmento.
     pub fn line_of_sight(&self, from: Vec3, to: Vec3) -> bool {
         let delta = to - from;
@@ -400,6 +425,7 @@ pub(crate) fn track_sphere_hits(
             let tri = trimesh.triangle(index);
             if let Some(mut hit) = sphere_triangle(old, new, radius, [tri.a, tri.b, tri.c]) {
                 hit.surface = mesh.surfaces[index as usize];
+                hit.profile = *mesh.profile(hit.surface);
                 out.push(hit);
             }
         }
@@ -441,6 +467,7 @@ pub(crate) fn sphere_triangle(old: Vec3, new: Vec3, radius: f32, [a, b, c]: [Vec
             world_pos: new - n * new_dist,
             depth: new_dist - radius,
             surface: SurfaceType::Road,
+            profile: *surfaces::profile(SurfaceType::Road),
         });
     }
     if outside != 1 {
@@ -471,6 +498,7 @@ pub(crate) fn sphere_triangle(old: Vec3, new: Vec3, radius: f32, [a, b, c]: [Vec
         world_pos,
         depth: length - radius,
         surface: SurfaceType::Road,
+        profile: *surfaces::profile(SurfaceType::Road),
     })
 }
 
@@ -547,7 +575,7 @@ impl PhysicsHooks for SurfaceHooks<'_> {
             return;
         };
         let surface = mesh.surfaces.get(tri as usize).copied().unwrap_or(SurfaceType::Road);
-        let profile = surfaces::profile(surface);
+        let profile = mesh.profile(surface);
         let mut friction = body_friction * profile.roughness;
         let mut restitution = hardness * profile.hardness;
         if context.normal.y.abs() < 0.15 {

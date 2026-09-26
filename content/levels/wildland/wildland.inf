@@ -1,0 +1,35 @@
+NAME		'Wildland'	; by javildesign.com
+DIFFICULTY      4 ; Display difficulty (0:Unknown, 1:Easy, 2:Normal, 3:Hard, 4:Extreme)
+
+CHALLENGE       0 49 260 ; Time in <min sec ms>
+CHALLENGEREV    0 48 382 ; Time in <min sec ms>
+
+STARTPOS	-3350 -50 11480	
+STARTPOSREV	-3580 -50 11300
+STARTROT	0.476
+STARTROTREV	0.976
+STARTGRID	0
+STARTGRIDREV	0 
+FARCLIP		1000000		
+FOGSTART	0		
+FOGCOLOR	0 0 0	
+VERTFOGSTART	0		
+VERTFOGEND	0		
+WORLDRGBPER     100            
+MODELRGBPER	50	
+MIRRORS		0 0.90 0 256	;Type - mix - intensity start - distance	
+MUSIC		'levels\wildland\wildland.ogg'
+SWEEPCAM  	1
+
+TEXTUREPROPS    0 1 0 0 ; A
+TEXTUREPROPS    1 1 0 0 ; B
+TEXTUREPROPS    2 1 0 0 ; C
+TEXTUREPROPS    3 1 0 0 ; D
+TEXTUREPROPS    4 1 0 0 ; E
+TEXTUREPROPS    5 1 0 0 ; F
+TEXTUREPROPS    6 1 0 0 ; G
+TEXTUREPROPS    7 1 0 0 ; H
+TEXTUREPROPS    8 1 0 0 ; I
+TEXTUREPROPS    9 1 0 0 ; J
+
+
